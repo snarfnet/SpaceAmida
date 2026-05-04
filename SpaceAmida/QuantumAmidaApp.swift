@@ -316,8 +316,8 @@ private struct AmidaCanvasView: View {
                 Color(red: 0.08, green: 0.03, blue: 0.12).opacity(0.72),
                 Color(red: 0.01, green: 0.02, blue: 0.04).opacity(0.95)
             ]),
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
+            startPoint: CGPoint(x: 0, y: 0),
+            endPoint: CGPoint(x: size.width, y: size.height)
         ))
 
         let galaxy = Path(ellipseIn: CGRect(x: size.width * 0.18, y: size.height * 0.18, width: size.width * 0.78, height: size.height * 0.38))
@@ -368,7 +368,7 @@ private struct AmidaCanvasView: View {
     }
 
     private func drawBadge(context: inout GraphicsContext, text: String, at point: CGPoint, color: Color) {
-        let resolved = context.resolve(Text(text).font(.caption.weight(.black)).foregroundStyle(.white))
+        let resolved = context.resolve(Text(text).font(.caption.weight(.black)).foregroundColor(.white))
         let width = min(max(resolved.measure(in: CGSize(width: 140, height: 28)).width + 22, 54), 126)
         let rect = CGRect(x: point.x - width / 2, y: point.y - 14, width: width, height: 28)
         context.fill(Path(roundedRect: rect, cornerRadius: 8), with: .color(.black.opacity(0.72)))
