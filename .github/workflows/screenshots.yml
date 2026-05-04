@@ -1,0 +1,77 @@
+name: Take and Upload Screenshots
+
+on:
+  workflow_dispatch:
+
+jobs:
+  screenshots:
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Select Xcode
+      run: |
+        XCODE_APP=$(ls /Applications/ | grep "^Xcode_" | sort -V | tail -1)
+        sudo xcode-select -s "/Applications/$XCODE_APP"
+        xcodebuild -version
+
+    - name: Install XcodeGen
+      run: brew install xcodegen
+
+    - name: Generate Xcode project
+      run: xcodegen generate
+
+    - name: Boot iPhone 15 Pro Max Simulator
+      run: |
+        DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 15 Pro Max" | head -1 | grep -oE '[A-F0-9-]{36}')
+        echo "DEVICE_ID=$DEVICE_ID" >> $GITHUB_ENV
+        echo "Device: $DEVICE_ID"
+        xcrun simctl boot "$DEVICE_ID" || true
+        xcrun simctl ui "$DEVICE_ID" appearance dark || true
+        sleep 15
+
+    - name: Build for Simulator
+      run: |
+        xcodebuild build \
+          -scheme SpaceAmida \
+          -configuration Debug \
+          -destination "id=${{ env.DEVICE_ID }}" \
+          -derivedDataPath build/DerivedData \
+          | xcpretty || true
+
+    - name: Install and Launch App
+      run: |
+        APP_PATH=$(find build/DerivedData -name "SpaceAmida.app" -not -path "*/PlugIns/*" | head -1)
+        echo "App: $APP_PATH"
+        xcrun simctl install "${{ env.DEVICE_ID }}" "$APP_PATH"
+        xcrun simctl launch "${{ env.DEVICE_ID }}" com.amasaki.spaceamida
+        sleep 6
+
+    - name: Take Screenshots
+      run: |
+        mkdir -p screenshots
+        xcrun simctl io "${{ env.DEVICE_ID }}" screenshot screenshots/ss1.png
+        sleep 3
+        xcrun simctl io "${{ env.DEVICE_ID }}" screenshot screenshots/ss2.png
+        sleep 5
+        xcrun simctl io "${{ env.DEVICE_ID }}" screenshot screenshots/ss3.png
+        echo "Screenshot sizes:"
+        ls -lh screenshots/
+
+    - name: Upload Screenshots as Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: screenshots
+        path: screenshots/
+
+    - name: Install PyJWT
+      run: pip3 install --break-system-packages PyJWT requests
+
+    - name: Upload to ASC
+      env:
+        ASC_API_KEY_CONTENT: ${{ secrets.ASC_API_KEY_CONTENT }}
+      run: |
+        mkdir -p ~/.appstoreconnect/private_keys
+        echo "$ASC_API_KEY_CONTENT" | base64 -D > /tmp/asc_key.p8
+        python3 scripts/upload_screenshots.py
