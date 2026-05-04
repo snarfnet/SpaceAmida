@@ -1,0 +1,39 @@
+name: SpaceAmida
+packages:
+  GoogleMobileAds:
+    url: https://github.com/googleads/swift-package-manager-google-mobile-ads
+    from: 11.0.0
+options:
+  bundleIdPrefix: com.amasaki
+  deploymentTarget:
+    iOS: "16.0"
+  defaultConfig: Release
+
+configs:
+  Debug: debug
+  Release: release
+
+targets:
+  SpaceAmida:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: SpaceAmida
+    dependencies:
+      - package: GoogleMobileAds
+        product: GoogleMobileAds
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.amasaki.spaceamida
+        MARKETING_VERSION: 1.0.0
+        CURRENT_PROJECT_VERSION: 1
+        INFOPLIST_FILE: SpaceAmida/Info.plist
+        SWIFT_VERSION: 5.9
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_PREVIEWS: YES
+        DEVELOPMENT_TEAM: 83VGKGSQUH
+        CODE_SIGN_STYLE: Automatic
+    info:
+      path: SpaceAmida/Info.plist
