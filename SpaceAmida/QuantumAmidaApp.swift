@@ -1,12 +1,28 @@
 import SwiftUI
 import AudioToolbox
 import GoogleMobileAds
+import AppTrackingTransparency
 
 @main
 struct QuantumAmidaApp: App {
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var attRequested = false
+
     var body: some Scene {
         WindowGroup {
             QuantumAmidaView()
+                .onChange(of: scenePhase) {
+                    if scenePhase == .active && !attRequested {
+                        attRequested = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                            ATTrackingManager.requestTrackingAuthorization { _ in
+                                DispatchQueue.main.async {
+                                    GADMobileAds.sharedInstance().start { _ in }
+                                }
+                            }
+                        }
+                    }
+                }
         }
     }
 }
@@ -271,8 +287,10 @@ struct QuantumAmidaView: View {
 
     private func showInterstitialIfReady() {
         guard let interstitial,
-              let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let rootVC = windowScene.windows.first(where: { $0.isKeyWindow })?.rootViewController else { return }
+              let windowScene = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene }).first,
+              let rootVC = windowScene.windows.first(where: { $0.isKeyWindow })?.rootViewController
+                ?? windowScene.windows.first?.rootViewController else { return }
         interstitial.present(fromRootViewController: rootVC)
         self.interstitial = nil
         loadInterstitial()
@@ -655,14 +673,16 @@ private struct BannerAdView: UIViewRepresentable {
     func makeUIView(context: Context) -> GADBannerView {
         let banner = GADBannerView(adSize: GADAdSizeBanner)
         banner.adUnitID = adUnitID
-        banner.rootViewController = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first?.windows.first(where: { $0.isKeyWindow })?.rootViewController
-        banner.load(GADRequest())
         return banner
     }
 
-    func updateUIView(_ uiView: GADBannerView, context: Context) {}
+    func updateUIView(_ uiView: GADBannerView, context: Context) {
+        guard uiView.rootViewController == nil else { return }
+        if let rootVC = uiView.window?.rootViewController {
+            uiView.rootViewController = rootVC
+            uiView.load(GADRequest())
+        }
+    }
 }
 
 #Preview {
