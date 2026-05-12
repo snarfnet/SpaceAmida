@@ -20,14 +20,6 @@ struct QuantumAmidaApp: App {
         }
     }
 }
-                                }
-                            }
-                        }
-                    }
-                }
-        }
-    }
-}
 
 struct QuantumAmidaView: View {
     @State private var entryCount = 5.0
