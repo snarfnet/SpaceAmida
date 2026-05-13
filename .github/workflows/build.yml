@@ -115,17 +115,6 @@ jobs:
           -authenticationKeyID WDXGY9WX55 \
           -authenticationKeyIssuerID 2be0734f-943a-4d61-9dc9-5d9045c46fec
 
-    - name: Upload IPA
-      run: |
-        IPA_PATH=$(find build/export -name "*.ipa" -print -quit)
-        test -n "$IPA_PATH" || (echo "IPA was not exported" && exit 1)
-        xcrun altool --upload-app \
-          -f "$IPA_PATH" \
-          -t ios \
-          --apiKey WDXGY9WX55 \
-          --apiIssuer 2be0734f-943a-4d61-9dc9-5d9045c46fec \
-          --verbose
-
     - name: Install PyJWT
       run: pip3 install --break-system-packages PyJWT requests
 
