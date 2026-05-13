@@ -31,10 +31,33 @@ def short_error(r):
                 code = err.get('code', 'UNKNOWN')
                 detail = err.get('detail') or err.get('title') or ''
                 parts.append(f'{code}: {detail}')
+                associated = (err.get('meta') or {}).get('associatedErrors') or {}
+                for path, path_errors in associated.items():
+                    for path_error in path_errors[:3]:
+                        path_code = path_error.get('code', 'UNKNOWN')
+                        path_detail = path_error.get('detail') or path_error.get('title') or ''
+                        parts.append(f'{path} {path_code}: {path_detail}')
             return ' | '.join(parts)
     except Exception:
         pass
     return r.text[:500]
+
+def delete_existing_version_submission(version_id):
+    r = api('GET', f'/appStoreVersions/{version_id}/relationships/appStoreVersionSubmission')
+    if r.status_code != 200:
+        print(f'Could not check old version submission: {r.status_code} {short_error(r)}')
+        return
+
+    submission = (r.json().get('data') or {})
+    submission_id = submission.get('id')
+    if not submission_id:
+        print('No old appStoreVersionSubmission found.')
+        return
+
+    print(f'Deleting old appStoreVersionSubmission: {submission_id}')
+    r = api('DELETE', f'/appStoreVersionSubmissions/{submission_id}')
+    if r.status_code not in (200, 204, 404):
+        print(f'Old submission delete failed: {r.status_code} {short_error(r)}')
 
 def submit_legacy(version_id):
     return api('POST', '/appStoreVersionSubmissions', json={
@@ -52,6 +75,7 @@ def submit_review_submission(version_id):
     r = api('POST', '/reviewSubmissions', json={
         'data': {
             'type': 'reviewSubmissions',
+            'attributes': {'platform': 'IOS'},
             'relationships': {'app': {'data': {'type': 'apps', 'id': APP_ID}}}
         }
     })
@@ -148,6 +172,8 @@ print(f'Build assigned: {r.status_code}')
 if r.status_code not in (200, 204):
     print(f'Build assignment failed: {short_error(r)}')
     sys.exit(1)
+
+delete_existing_version_submission(version_id)
 
 # First submissions and rejected first releases can require the direct version
 # submission endpoint. If Apple rejects that route, try the newer review
