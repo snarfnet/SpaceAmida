@@ -1,4 +1,4 @@
-import jwt, time, requests, sys
+import jwt, time, requests, sys, re
 
 KEY_ID = 'WDXGY9WX55'
 ISSUER = '2be0734f-943a-4d61-9dc9-5d9045c46fec'
@@ -110,6 +110,19 @@ def create_review_submission():
 
     return None, f'Create reviewSubmission failed: {r.status_code} {short_error(r)}'
 
+def finish_review_submission(submission_id):
+    r = api('PATCH', f'/reviewSubmissions/{submission_id}', json={
+        'data': {
+            'type': 'reviewSubmissions',
+            'id': submission_id,
+            'attributes': {'submitted': True}
+        }
+    })
+    if r.status_code == 200:
+        state = r.json()['data']['attributes']['state']
+        return True, f'Submitted! State: {state}'
+    return False, f'Submit failed: {r.status_code} {short_error(r)}'
+
 def submit_review_submission(version_id):
     submission_id, error = create_review_submission()
     if not submission_id:
@@ -126,23 +139,18 @@ def submit_review_submission(version_id):
     })
     if r.status_code not in (200, 201):
         error = short_error(r)
+        existing = re.search(r'reviewSubmission with id ([0-9a-f-]+)', error)
+        if existing:
+            existing_id = existing.group(1)
+            print(f'App version is already in reviewSubmission: {existing_id}')
+            return finish_review_submission(existing_id)
         if 'already exists' not in error.lower() and 'already been taken' not in error.lower():
             return False, f'Add reviewSubmissionItem failed: {r.status_code} {error}'
         print(f'ReviewSubmissionItem already exists: {r.status_code}')
     else:
         print(f'Add item: {r.status_code}')
 
-    r = api('PATCH', f'/reviewSubmissions/{submission_id}', json={
-        'data': {
-            'type': 'reviewSubmissions',
-            'id': submission_id,
-            'attributes': {'submitted': True}
-        }
-    })
-    if r.status_code == 200:
-        state = r.json()['data']['attributes']['state']
-        return True, f'Submitted! State: {state}'
-    return False, f'Submit failed: {r.status_code} {short_error(r)}'
+    return finish_review_submission(submission_id)
 
 print(f'Waiting for build {BUILD_NUMBER} to be processed...')
 build_id = None
