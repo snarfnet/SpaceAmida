@@ -71,7 +71,26 @@ def submit_legacy(version_id):
         }
     })
 
-def submit_review_submission(version_id):
+def reusable_review_submission_id():
+    r = api('GET', f'/reviewSubmissions?filter[app]={APP_ID}&filter[platform]=IOS&limit=200')
+    if r.status_code != 200:
+        print(f'Could not list review submissions: {r.status_code} {short_error(r)}')
+        return None
+
+    submissions = r.json().get('data') or []
+    print(f'Found reviewSubmissions: {len(submissions)}')
+    for submission in submissions:
+        state = (submission.get('attributes') or {}).get('state')
+        submission_id = submission.get('id')
+        print(f'ReviewSubmission {submission_id} state={state}')
+        if state in ('WAITING_FOR_REVIEW', 'IN_REVIEW'):
+            print(f'Already submitted for review: {submission_id} state={state}')
+            sys.exit(0)
+        if state == 'READY_FOR_REVIEW':
+            return submission_id
+    return None
+
+def create_review_submission():
     r = api('POST', '/reviewSubmissions', json={
         'data': {
             'type': 'reviewSubmissions',
@@ -79,11 +98,22 @@ def submit_review_submission(version_id):
             'relationships': {'app': {'data': {'type': 'apps', 'id': APP_ID}}}
         }
     })
-    if r.status_code != 201:
-        return False, f'Create reviewSubmission failed: {r.status_code} {short_error(r)}'
+    if r.status_code == 201:
+        submission_id = r.json()['data']['id']
+        print(f'ReviewSubmission created: {submission_id}')
+        return submission_id, None
 
-    submission_id = r.json()['data']['id']
-    print(f'ReviewSubmission created: {submission_id}')
+    existing_id = reusable_review_submission_id()
+    if existing_id:
+        print(f'Reusing reviewSubmission: {existing_id}')
+        return existing_id, None
+
+    return None, f'Create reviewSubmission failed: {r.status_code} {short_error(r)}'
+
+def submit_review_submission(version_id):
+    submission_id, error = create_review_submission()
+    if not submission_id:
+        return False, error
 
     r = api('POST', '/reviewSubmissionItems', json={
         'data': {
@@ -95,8 +125,12 @@ def submit_review_submission(version_id):
         }
     })
     if r.status_code not in (200, 201):
-        return False, f'Add reviewSubmissionItem failed: {r.status_code} {short_error(r)}'
-    print(f'Add item: {r.status_code}')
+        error = short_error(r)
+        if 'already exists' not in error.lower() and 'already been taken' not in error.lower():
+            return False, f'Add reviewSubmissionItem failed: {r.status_code} {error}'
+        print(f'ReviewSubmissionItem already exists: {r.status_code}')
+    else:
+        print(f'Add item: {r.status_code}')
 
     r = api('PATCH', f'/reviewSubmissions/{submission_id}', json={
         'data': {
