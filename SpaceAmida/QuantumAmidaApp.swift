@@ -1,219 +1,274 @@
 import SwiftUI
 import AudioToolbox
-import GoogleMobileAds
-import AppTrackingTransparency
 
 @main
 struct QuantumAmidaApp: App {
-    init() {
-        GADMobileAds.sharedInstance().start(completionHandler: nil)
-    }
-
     var body: some Scene {
         WindowGroup {
             QuantumAmidaView()
-                .onAppear {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                        ATTrackingManager.requestTrackingAuthorization { _ in }
-                    }
-                }
         }
     }
 }
 
 struct QuantumAmidaView: View {
-    @State private var entryCount = 5.0
-    @State private var names = ["ミラ", "レイ", "ノヴァ", "カイ", "ユリ", "ゼン", "アオ", "ルナ"]
-    @State private var resultLabels = ["大当たり", "調査任務", "補給係", "船長", "解析班", "ワープ係", "通信士", "自由枠"]
-    @State private var model = AmidaModel(count: 5)
+    @State private var laneCount = 5.0
+    @State private var names = ["ミラ", "レイ", "ノア", "カイ", "ユリ", "ゼン", "アオ", "ルナ"]
+    @State private var prizes = ["船長", "通信士", "観測員", "整備士", "補給係", "航法士", "記録係", "自由枠"]
+    @State private var board = SpaceAmidaBoard(count: 5)
     @State private var startDate: Date?
-    @State private var revealedResults: Set<Int> = []
+    @State private var revealedLanes: Set<Int> = []
     @State private var soundEnabled = true
     @State private var isRunning = false
-    @State private var interstitial: GADInterstitialAd?
+    @State private var history: [String] = []
 
-    private let bannerAdUnitID = "ca-app-pub-9404799280370656/3487355456"
-
-    private var count: Int {
-        Int(entryCount.rounded())
-    }
+    private var count: Int { Int(laneCount.rounded()) }
+    private var visibleNames: [String] { Array(names.prefix(count)) }
+    private var visiblePrizes: [String] { Array(prizes.prefix(count)) }
 
     var body: some View {
         ZStack {
-            GalaxyBackground()
+            SpaceBackground()
                 .ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                ScrollView {
-                    VStack(spacing: 16) {
-                        header
-                        settingsPanel
-                        board
-                        resultGrid
-                    }
-                    .padding(16)
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 16) {
+                    header
+                    commandPanel
+                    boardPanel
+                    resultPanel
+                    historyPanel
                 }
-                BannerAdView(adUnitID: bannerAdUnitID)
-                    .frame(height: 50)
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 28)
             }
         }
         .preferredColorScheme(.dark)
         .onAppear {
-            rebuild()
-            loadInterstitial()
+            normalizeArrays()
+            rebuildBoard()
         }
         .onChange(of: count) { _ in
             normalizeArrays()
-            rebuild()
+            rebuildBoard()
         }
         .onReceive(Timer.publish(every: 1.0 / 30.0, on: .main, in: .common).autoconnect()) { date in
-            tick(date)
+            advanceAnimation(date)
         }
     }
 
     private var header: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text("SPACE AMIDA")
-                    .font(.caption.weight(.bold))
+                    .font(.system(size: 12, weight: .black, design: .monospaced))
                     .foregroundStyle(.cyan)
+                    .tracking(1.8)
+
                 Text("スペースあみだ")
-                    .font(.system(size: 38, weight: .black, design: .rounded))
+                    .font(.system(size: 36, weight: .black, design: .rounded))
+                    .lineLimit(1)
                     .minimumScaleFactor(0.72)
+
+                Text("星のレーンを走らせて、今日の役割を決める。")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.72))
+                    .lineLimit(2)
             }
-            Spacer()
+
+            Spacer(minLength: 8)
+
             Button {
                 soundEnabled.toggle()
                 playTap()
             } label: {
                 Image(systemName: soundEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill")
+                    .font(.system(size: 18, weight: .bold))
                     .frame(width: 46, height: 46)
-                    .foregroundStyle(soundEnabled ? .cyan : .secondary)
-                    .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.white.opacity(0.14)))
+                    .foregroundStyle(soundEnabled ? .cyan : .white.opacity(0.45))
+                    .background(.black.opacity(0.34), in: RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.white.opacity(0.18)))
             }
             .accessibilityLabel(soundEnabled ? "効果音をオフ" : "効果音をオン")
         }
     }
 
-    private var settingsPanel: some View {
+    private var commandPanel: some View {
         VStack(spacing: 14) {
             HStack {
-                Text("エントリー数")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.secondary)
+                Label("参加レーン", systemImage: "slider.horizontal.3")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(.white.opacity(0.68))
                 Spacer()
                 Text("\(count)")
                     .font(.title3.weight(.black))
                     .foregroundStyle(.yellow)
+                    .monospacedDigit()
             }
 
-            Slider(value: $entryCount, in: 2...8, step: 1)
+            Slider(value: $laneCount, in: 2...8, step: 1)
                 .tint(.cyan)
                 .disabled(isRunning)
 
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                ForEach(0..<count, id: \.self) { index in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("#\(String(format: "%02d", index + 1))")
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(.secondary)
-                        TextField("名前", text: binding($names, index: index))
-                            .textFieldStyle(AmidaTextFieldStyle())
-                            .disabled(isRunning)
+            VStack(alignment: .leading, spacing: 10) {
+                sectionTitle("クルー")
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                    ForEach(0..<count, id: \.self) { index in
+                        FieldTile(index: index, title: "レーン \(index + 1)", text: binding($names, index: index), disabled: isRunning)
                     }
                 }
             }
 
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Text("RESULT LABELS")
-                        .font(.caption.weight(.black))
-                        .foregroundStyle(.green)
+                    sectionTitle("ゴール")
                     Spacer()
-                    Button("名前から作成") {
+                    Button {
                         for index in 0..<count {
-                            resultLabels[index] = names[index]
+                            prizes[index] = names[index].isEmpty ? "ゴール \(index + 1)" : names[index]
                         }
-                        revealedResults = []
+                        revealedLanes = []
                         playTap()
+                    } label: {
+                        Label("名前を使う", systemImage: "arrow.down.doc.fill")
                     }
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.green)
+                    .foregroundStyle(.mint)
                     .disabled(isRunning)
                 }
 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                     ForEach(0..<count, id: \.self) { index in
-                        TextField("結果", text: binding($resultLabels, index: index))
-                            .textFieldStyle(AmidaTextFieldStyle())
-                            .disabled(isRunning)
+                        FieldTile(index: index, title: "結果 \(index + 1)", text: binding($prizes, index: index), disabled: isRunning)
                     }
                 }
             }
 
             HStack(spacing: 10) {
                 Button {
-                    rebuild()
+                    rebuildBoard()
                     playTap()
                 } label: {
-                    Label("再生成", systemImage: "arrow.triangle.2.circlepath")
+                    Label("組み直す", systemImage: "arrow.triangle.2.circlepath")
                 }
-                .buttonStyle(AmidaGhostButtonStyle())
+                .buttonStyle(SecondarySpaceButtonStyle())
                 .disabled(isRunning)
 
                 Button {
-                    start()
+                    startRun()
                 } label: {
-                    Label(isRunning ? "RUNNING" : "START", systemImage: "sparkles")
+                    Label(isRunning ? "航行中" : "スタート", systemImage: isRunning ? "bolt.fill" : "sparkles")
                 }
-                .buttonStyle(AmidaStartButtonStyle())
+                .buttonStyle(PrimarySpaceButtonStyle())
                 .disabled(isRunning)
             }
         }
         .padding(16)
-        .background(.black.opacity(0.42), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.cyan.opacity(0.2)))
+        .background(.black.opacity(0.44), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.cyan.opacity(0.22)))
     }
 
-    private var board: some View {
+    private var boardPanel: some View {
         TimelineView(.animation) { timeline in
-            let now = timeline.date
-            let elapsed = startDate.map { now.timeIntervalSince($0) } ?? 0
-            AmidaCanvasView(
-                model: model,
-                names: Array(names.prefix(count)),
-                resultLabels: Array(resultLabels.prefix(count)),
+            let elapsed = startDate.map { timeline.date.timeIntervalSince($0) } ?? 0
+            SpaceAmidaCanvas(
+                board: board,
+                names: visibleNames,
+                prizes: visiblePrizes,
                 elapsed: elapsed,
                 isRunning: isRunning,
-                revealedResults: revealedResults
+                revealedLanes: revealedLanes
             )
-            .frame(height: 440)
-            .background(.black.opacity(0.34), in: RoundedRectangle(cornerRadius: 8))
+            .frame(height: 470)
+            .background(.black.opacity(0.38), in: RoundedRectangle(cornerRadius: 8))
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(.cyan.opacity(0.26)))
         }
     }
 
-    private var resultGrid: some View {
-        let outputs = model.outputs(for: Array(names.prefix(count)))
-        return LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-            ForEach(0..<count, id: \.self) { index in
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(resultLabels[index])
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.secondary)
-                    Text(revealedResults.contains(index) ? outputs[index] : "待機中")
-                        .font(.headline.weight(.black))
-                        .foregroundStyle(.white)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.72)
+    private var resultPanel: some View {
+        let outputs = board.outputs(for: visibleNames)
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                sectionTitle("結果")
+                Spacer()
+                Text(revealedLanes.count == count ? "COMPLETE" : "\(revealedLanes.count)/\(count)")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(revealedLanes.count == count ? .mint : .white.opacity(0.58))
+                    .monospacedDigit()
+            }
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                ForEach(0..<count, id: \.self) { index in
+                    let revealed = revealedLanes.contains(index)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(prizes[index].isEmpty ? "ゴール \(index + 1)" : prizes[index])
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.white.opacity(0.58))
+                            .lineLimit(1)
+                        Text(revealed ? outputs[index] : "待機中")
+                            .font(.headline.weight(.black))
+                            .foregroundStyle(revealed ? .white : .white.opacity(0.48))
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.68)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
+                    .padding(12)
+                    .background(revealed ? .mint.opacity(0.15) : .white.opacity(0.055), in: RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(revealed ? .mint.opacity(0.48) : .white.opacity(0.11)))
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-                .background(revealedResults.contains(index) ? .green.opacity(0.12) : .white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
-                .overlay(RoundedRectangle(cornerRadius: 8).stroke(revealedResults.contains(index) ? .green.opacity(0.42) : .white.opacity(0.12)))
             }
         }
+        .padding(14)
+        .background(.black.opacity(0.30), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var historyPanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                sectionTitle("ログ")
+                Spacer()
+                Button("消す") {
+                    history.removeAll()
+                    playTap()
+                }
+                .font(.caption.weight(.bold))
+                .foregroundStyle(history.isEmpty ? .white.opacity(0.28) : .white.opacity(0.72))
+                .disabled(history.isEmpty)
+            }
+
+            if history.isEmpty {
+                Text("完了した結果がここに残ります。")
+                    .font(.footnote)
+                    .foregroundStyle(.white.opacity(0.48))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+                    .background(.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 8))
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(Array(history.prefix(4).enumerated()), id: \.offset) { index, value in
+                        HStack(spacing: 10) {
+                            Text("#\(index + 1)")
+                                .font(.caption.weight(.black))
+                                .foregroundStyle(.cyan)
+                                .frame(width: 32, alignment: .leading)
+                            Text(value)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.white.opacity(0.86))
+                                .lineLimit(2)
+                            Spacer()
+                        }
+                        .padding(12)
+                        .background(.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 8))
+                    }
+                }
+            }
+        }
+    }
+
+    private func sectionTitle(_ text: String) -> some View {
+        Text(text)
+            .font(.caption.weight(.black))
+            .foregroundStyle(.white.opacity(0.66))
     }
 
     private func binding(_ array: Binding<[String]>, index: Int) -> Binding<String> {
@@ -228,43 +283,50 @@ struct QuantumAmidaView: View {
 
     private func normalizeArrays() {
         while names.count < 8 {
-            names.append("ENTRY \(names.count + 1)")
+            names.append("クルー \(names.count + 1)")
         }
-        while resultLabels.count < 8 {
-            resultLabels.append("RESULT \(resultLabels.count + 1)")
+        while prizes.count < 8 {
+            prizes.append("ゴール \(prizes.count + 1)")
         }
     }
 
-    private func rebuild() {
-        model = AmidaModel(count: count)
+    private func rebuildBoard() {
+        board = SpaceAmidaBoard(count: count)
         startDate = nil
-        revealedResults = []
+        revealedLanes = []
         isRunning = false
     }
 
-    private func start() {
+    private func startRun() {
         startDate = Date()
-        revealedResults = []
+        revealedLanes = []
         isRunning = true
         playTap()
     }
 
-    private func tick(_ date: Date) {
+    private func advanceAnimation(_ date: Date) {
         guard isRunning, let startDate else { return }
         let elapsed = date.timeIntervalSince(startDate)
-        var nextRevealed = revealedResults
-        for path in model.paths {
-            if elapsed >= path.delay + path.duration {
-                nextRevealed.insert(path.endIndex)
-            }
+        var next = revealedLanes
+        for path in board.paths where elapsed >= path.delay + path.duration {
+            next.insert(path.endIndex)
         }
-        if nextRevealed != revealedResults {
-            revealedResults = nextRevealed
+
+        if next != revealedLanes {
+            revealedLanes = next
             playTap()
         }
-        if nextRevealed.count == count {
+
+        if next.count == count {
             isRunning = false
-            showInterstitialIfReady()
+            let outputs = board.outputs(for: visibleNames)
+            let summary = (0..<count).map { index in
+                "\(prizes[index]): \(outputs[index])"
+            }.joined(separator: " / ")
+            history.insert(summary, at: 0)
+            if history.count > 8 {
+                history.removeLast()
+            }
         }
     }
 
@@ -272,49 +334,44 @@ struct QuantumAmidaView: View {
         guard soundEnabled else { return }
         AudioServicesPlaySystemSound(1104)
     }
+}
 
-    private func loadInterstitial() {
-        GADInterstitialAd.load(withAdUnitID: bannerAdUnitID, request: GADRequest()) { ad, _ in
-            self.interstitial = ad
+private struct FieldTile: View {
+    let index: Int
+    let title: String
+    @Binding var text: String
+    let disabled: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption2.weight(.black))
+                .foregroundStyle(SpaceAmidaBoard.palette[index % SpaceAmidaBoard.palette.count])
+            TextField(title, text: $text)
+                .textFieldStyle(SpaceFieldStyle())
+                .disabled(disabled)
         }
-    }
-
-    private func showInterstitialIfReady() {
-        guard let interstitial,
-              let windowScene = UIApplication.shared.connectedScenes
-                .compactMap({ $0 as? UIWindowScene }).first,
-              let rootVC = windowScene.windows.first(where: { $0.isKeyWindow })?.rootViewController
-                ?? windowScene.windows.first?.rootViewController else { return }
-        interstitial.present(fromRootViewController: rootVC)
-        self.interstitial = nil
-        loadInterstitial()
     }
 }
 
-private struct AmidaCanvasView: View {
-    let model: AmidaModel
+private struct SpaceAmidaCanvas: View {
+    let board: SpaceAmidaBoard
     let names: [String]
-    let resultLabels: [String]
+    let prizes: [String]
     let elapsed: TimeInterval
     let isRunning: Bool
-    let revealedResults: Set<Int>
+    let revealedLanes: Set<Int>
 
     var body: some View {
         Canvas { context, size in
             drawBackdrop(context: &context, size: size)
-            let layout = model.layout(in: size)
-            drawLines(context: &context, layout: layout)
+            let layout = board.layout(in: size)
+            drawGrid(context: &context, layout: layout)
             drawLabels(context: &context, layout: layout)
+            drawParticles(context: &context, layout: layout)
 
             if isRunning {
-                drawStartBurst(context: &context, size: size)
-            }
-
-            for path in model.paths {
-                let progress = path.progress(at: elapsed)
-                if progress > 0 {
-                    drawParticlePath(context: &context, layout: layout, path: path, progress: progress)
-                }
+                drawPulse(context: &context, size: size)
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -324,126 +381,148 @@ private struct AmidaCanvasView: View {
         let rect = CGRect(origin: .zero, size: size)
         context.fill(Path(rect), with: .linearGradient(
             Gradient(colors: [
-                Color(red: 0.02, green: 0.03, blue: 0.08).opacity(0.9),
-                Color(red: 0.08, green: 0.03, blue: 0.12).opacity(0.72),
-                Color(red: 0.01, green: 0.02, blue: 0.04).opacity(0.95)
+                Color(red: 0.01, green: 0.02, blue: 0.05),
+                Color(red: 0.04, green: 0.07, blue: 0.11),
+                Color(red: 0.10, green: 0.03, blue: 0.10)
             ]),
-            startPoint: CGPoint(x: 0, y: 0),
-            endPoint: CGPoint(x: size.width, y: size.height)
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
         ))
 
-        let galaxy = Path(ellipseIn: CGRect(x: size.width * 0.18, y: size.height * 0.18, width: size.width * 0.78, height: size.height * 0.38))
         var blurContext = context
-        blurContext.addFilter(.blur(radius: 22))
-        blurContext.fill(galaxy, with: .radialGradient(
-            Gradient(colors: [.cyan.opacity(0.34), .purple.opacity(0.18), .clear]),
-            center: CGPoint(x: size.width * 0.58, y: size.height * 0.36),
-            startRadius: 20,
-            endRadius: size.width * 0.46
+        blurContext.addFilter(.blur(radius: 24))
+        let nebula = Path(ellipseIn: CGRect(x: size.width * 0.12, y: size.height * 0.12, width: size.width * 0.86, height: size.height * 0.42))
+        blurContext.fill(nebula, with: .radialGradient(
+            Gradient(colors: [.cyan.opacity(0.34), .pink.opacity(0.22), .clear]),
+            center: CGPoint(x: size.width * 0.58, y: size.height * 0.34),
+            startRadius: 12,
+            endRadius: size.width * 0.55
         ))
 
-        for index in 0..<46 {
-            let x = CGFloat((index * 37) % 101) / 100 * size.width
-            let y = CGFloat((index * 59) % 97) / 100 * size.height
-            let dot = Path(ellipseIn: CGRect(x: x, y: y, width: 1.4, height: 1.4))
-            context.fill(dot, with: .color(.white.opacity(0.46)))
+        for index in 0..<72 {
+            let x = CGFloat((index * 47) % 103) / 102 * size.width
+            let y = CGFloat((index * 71) % 109) / 108 * size.height
+            let alpha = 0.22 + Double((index * 13) % 6) * 0.06
+            let dot = Path(ellipseIn: CGRect(x: x, y: y, width: 1.3, height: 1.3))
+            context.fill(dot, with: .color(.white.opacity(alpha)))
         }
     }
 
-    private func drawLines(context: inout GraphicsContext, layout: AmidaLayout) {
-        var glowContext = context
-        glowContext.addFilter(.shadow(color: .cyan.opacity(0.78), radius: 12))
+    private func drawGrid(context: inout GraphicsContext, layout: SpaceAmidaLayout) {
+        var glow = context
+        glow.addFilter(.shadow(color: .cyan.opacity(0.72), radius: 12))
 
         for column in layout.columns {
-            var glow = Path()
-            glow.move(to: CGPoint(x: column.x, y: layout.top))
-            glow.addLine(to: CGPoint(x: column.x, y: layout.bottom))
-            glowContext.stroke(glow, with: .color(.cyan.opacity(0.76)), lineWidth: 6.5)
-            context.stroke(glow, with: .color(.white.opacity(0.9)), lineWidth: 1.8)
+            var line = Path()
+            line.move(to: CGPoint(x: column.x, y: layout.top))
+            line.addLine(to: CGPoint(x: column.x, y: layout.bottom))
+            glow.stroke(line, with: .color(.cyan.opacity(0.46)), lineWidth: 7)
+            context.stroke(line, with: .color(.white.opacity(0.78)), lineWidth: 1.6)
         }
 
         for bridge in layout.bridges {
-            let color = bridge.index.isMultiple(of: 2) ? Color.pink : Color.green
+            let color = SpaceAmidaBoard.palette[bridge.index % SpaceAmidaBoard.palette.count]
             var line = Path()
             line.move(to: CGPoint(x: bridge.x1, y: bridge.y))
             line.addLine(to: CGPoint(x: bridge.x2, y: bridge.y))
-            glowContext.stroke(line, with: .color(color.opacity(0.74)), lineWidth: 7)
-            context.stroke(line, with: .color(.white.opacity(0.88)), lineWidth: 1.9)
+            glow.stroke(line, with: .color(color.opacity(0.68)), lineWidth: 7)
+            context.stroke(line, with: .color(.white.opacity(0.84)), lineWidth: 1.8)
         }
     }
 
-    private func drawLabels(context: inout GraphicsContext, layout: AmidaLayout) {
+    private func drawLabels(context: inout GraphicsContext, layout: SpaceAmidaLayout) {
         for index in layout.columns.indices {
-            drawBadge(context: &context, text: names[safe: index] ?? "ENTRY \(index + 1)", at: CGPoint(x: layout.columns[index].x, y: layout.top - 44), color: .cyan)
-            drawBadge(context: &context, text: resultLabels[safe: index] ?? "RESULT \(index + 1)", at: CGPoint(x: layout.columns[index].x, y: layout.bottom + 44), color: revealedResults.contains(index) ? .green : .secondary)
+            drawBadge(
+                context: &context,
+                text: names[safe: index]?.isEmpty == false ? names[index] : "クルー \(index + 1)",
+                point: CGPoint(x: layout.columns[index].x, y: layout.top - 44),
+                color: SpaceAmidaBoard.palette[index % SpaceAmidaBoard.palette.count]
+            )
+            drawBadge(
+                context: &context,
+                text: prizes[safe: index]?.isEmpty == false ? prizes[index] : "ゴール \(index + 1)",
+                point: CGPoint(x: layout.columns[index].x, y: layout.bottom + 44),
+                color: revealedLanes.contains(index) ? .mint : .white.opacity(0.42)
+            )
         }
     }
 
-    private func drawBadge(context: inout GraphicsContext, text: String, at point: CGPoint, color: Color) {
-        let resolved = context.resolve(Text(text).font(.caption.weight(.black)).foregroundColor(.white))
-        let width = min(max(resolved.measure(in: CGSize(width: 140, height: 28)).width + 22, 54), 126)
-        let rect = CGRect(x: point.x - width / 2, y: point.y - 14, width: width, height: 28)
+    private func drawBadge(context: inout GraphicsContext, text: String, point: CGPoint, color: Color) {
+        let resolved = context.resolve(Text(text).font(.caption.weight(.black)).foregroundStyle(.white))
+        let width = min(max(resolved.measure(in: CGSize(width: 132, height: 30)).width + 18, 58), 126)
+        let rect = CGRect(x: point.x - width / 2, y: point.y - 15, width: width, height: 30)
         context.fill(Path(roundedRect: rect, cornerRadius: 8), with: .color(.black.opacity(0.72)))
         context.stroke(Path(roundedRect: rect, cornerRadius: 8), with: .color(color.opacity(0.72)), lineWidth: 1)
         context.draw(resolved, at: point)
     }
 
-    private func drawStartBurst(context: inout GraphicsContext, size: CGSize) {
-        let center = CGPoint(x: size.width / 2, y: size.height / 2)
-        let pulse = 0.5 + sin(elapsed * 8) * 0.5
-        let radius = 24 + pulse * 22
-        context.stroke(Path(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)), with: .color(.cyan.opacity(0.22)), lineWidth: 3)
+    private func drawParticles(context: inout GraphicsContext, layout: SpaceAmidaLayout) {
+        for path in board.paths {
+            let progress = path.progress(at: elapsed)
+            guard progress > 0 else { continue }
+
+            let color = SpaceAmidaBoard.palette[path.startIndex % SpaceAmidaBoard.palette.count]
+            let point = layout.point(on: path, progress: progress)
+            let trailStart = max(0, progress - 0.18)
+
+            var trail = Path()
+            for step in 0...10 {
+                let p = trailStart + (progress - trailStart) * Double(step) / 10
+                let trailPoint = layout.point(on: path, progress: p)
+                if step == 0 {
+                    trail.move(to: trailPoint)
+                } else {
+                    trail.addLine(to: trailPoint)
+                }
+            }
+
+            var glow = context
+            glow.addFilter(.shadow(color: color.opacity(0.9), radius: 16))
+            glow.stroke(trail, with: .color(color.opacity(0.82)), lineWidth: 7)
+            context.stroke(trail, with: .color(.white.opacity(0.86)), lineWidth: 1.6)
+
+            let ship = Path(ellipseIn: CGRect(x: point.x - 8, y: point.y - 8, width: 16, height: 16))
+            glow.fill(ship, with: .color(color))
+            context.fill(Path(ellipseIn: CGRect(x: point.x - 3, y: point.y - 3, width: 6, height: 6)), with: .color(.white))
+        }
     }
 
-    private func drawParticlePath(context: inout GraphicsContext, layout: AmidaLayout, path: AmidaPath, progress: Double) {
-        let point = layout.point(on: path, progress: progress)
-        let color = AmidaModel.palette[path.startIndex % AmidaModel.palette.count]
-        var glowContext = context
-        glowContext.addFilter(.shadow(color: color.opacity(0.9), radius: 16))
-
-        let trailProgress = max(0, progress - 0.16)
-        var trail = Path()
-        for step in 0...8 {
-            let p = trailProgress + (progress - trailProgress) * Double(step) / 8
-            let trailPoint = layout.point(on: path, progress: p)
-            if step == 0 {
-                trail.move(to: trailPoint)
-            } else {
-                trail.addLine(to: trailPoint)
-            }
-        }
-        glowContext.stroke(trail, with: .color(color.opacity(0.78)), lineWidth: 7)
-        context.stroke(trail, with: .color(.white.opacity(0.82)), lineWidth: 1.8)
-
-        let burst = Path(ellipseIn: CGRect(x: point.x - 8, y: point.y - 8, width: 16, height: 16))
-        glowContext.fill(burst, with: .color(color))
-        context.fill(Path(ellipseIn: CGRect(x: point.x - 3.2, y: point.y - 3.2, width: 6.4, height: 6.4)), with: .color(.white))
+    private func drawPulse(context: inout GraphicsContext, size: CGSize) {
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        let pulse = 0.5 + sin(elapsed * 7) * 0.5
+        let radius = 26 + pulse * 24
+        context.stroke(
+            Path(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)),
+            with: .color(.cyan.opacity(0.24)),
+            lineWidth: 3
+        )
     }
 }
 
-private struct AmidaModel {
-    static let palette: [Color] = [.cyan, .pink, .yellow, .green, .purple, .orange, .mint, .indigo]
+private struct SpaceAmidaBoard {
+    static let palette: [Color] = [.cyan, .pink, .yellow, .mint, .orange, .purple, .green, .indigo]
 
     let count: Int
-    let bridges: [AmidaBridge]
-    let paths: [AmidaPath]
+    let bridges: [SpaceAmidaBridge]
+    let paths: [SpaceAmidaPath]
 
     init(count: Int) {
-        let count = max(2, min(8, count))
-        self.count = count
-        self.bridges = AmidaModel.makeBridges(count: count)
-        self.paths = AmidaModel.makePaths(count: count, bridges: bridges)
+        let safeCount = max(2, min(8, count))
+        self.count = safeCount
+        self.bridges = SpaceAmidaBoard.makeBridges(count: safeCount)
+        self.paths = SpaceAmidaBoard.makePaths(count: safeCount, bridges: bridges)
     }
 
-    func layout(in size: CGSize) -> AmidaLayout {
-        let top: CGFloat = 78
-        let bottom = size.height - 82
-        let left = max(CGFloat(36), min(CGFloat(72), size.width * 0.09))
-        let right = size.width - left
-        let gap = (right - left) / CGFloat(count - 1)
-        let columns = (0..<count).map { AmidaColumn(x: left + CGFloat($0) * gap) }
+    func layout(in size: CGSize) -> SpaceAmidaLayout {
+        let top: CGFloat = 82
+        let bottom = max(top + 120, size.height - 86)
+        let side = max(CGFloat(30), min(CGFloat(70), size.width * 0.10))
+        let left = side
+        let right = size.width - side
+        let gap = (right - left) / CGFloat(max(1, count - 1))
+        let columns = (0..<count).map { SpaceAmidaColumn(x: left + CGFloat($0) * gap) }
         let layoutBridges = bridges.enumerated().map { index, bridge in
-            AmidaLayoutBridge(
+            SpaceAmidaLayoutBridge(
                 index: index,
                 left: bridge.left,
                 x1: columns[bridge.left].x,
@@ -451,83 +530,96 @@ private struct AmidaModel {
                 y: top + (bottom - top) * bridge.yRank
             )
         }
-        return AmidaLayout(top: top, bottom: bottom, columns: columns, bridges: layoutBridges)
+        return SpaceAmidaLayout(top: top, bottom: bottom, columns: columns, bridges: layoutBridges)
     }
 
     func outputs(for names: [String]) -> [String] {
         var outputs = Array(repeating: "", count: count)
         for path in paths {
-            outputs[path.endIndex] = names[safe: path.startIndex]?.isEmpty == false ? names[path.startIndex] : "ENTRY \(path.startIndex + 1)"
+            let value = names[safe: path.startIndex] ?? "クルー \(path.startIndex + 1)"
+            outputs[path.endIndex] = value.isEmpty ? "クルー \(path.startIndex + 1)" : value
         }
         return outputs
     }
 
-    private static func makeBridges(count: Int) -> [AmidaBridge] {
-        let rowCount = max(8, min(22, count * 3 + 2))
-        var output: [AmidaBridge] = []
-        var lastPair = -10
+    private static func makeBridges(count: Int) -> [SpaceAmidaBridge] {
+        let rowCount = max(8, min(24, count * 3 + 4))
+        var bridges: [SpaceAmidaBridge] = []
+        var previousLeft: Int?
+
         for row in 0..<rowCount {
-            var candidates = Array(0..<(count - 1)).filter { abs($0 - lastPair) > 0 }
+            var candidates = Array(0..<(count - 1))
+            if let previousLeft {
+                candidates.removeAll { abs($0 - previousLeft) <= 0 }
+            }
             if candidates.isEmpty {
                 candidates = Array(0..<(count - 1))
             }
-            let pair = candidates[(row * 7 + count * 3) % candidates.count]
-            lastPair = pair
-            output.append(AmidaBridge(left: pair, yRank: CGFloat(row + 1) / CGFloat(rowCount + 1)))
+
+            let seed = Int.random(in: 0..<max(1, candidates.count))
+            let left = candidates[(row + seed) % candidates.count]
+            previousLeft = left
+            bridges.append(SpaceAmidaBridge(left: left, yRank: CGFloat(row + 1) / CGFloat(rowCount + 1)))
         }
-        return output
+
+        return bridges
     }
 
-    private static func makePaths(count: Int, bridges: [AmidaBridge]) -> [AmidaPath] {
+    private static func makePaths(count: Int, bridges: [SpaceAmidaBridge]) -> [SpaceAmidaPath] {
         (0..<count).map { startIndex in
             var current = startIndex
-            var points: [AmidaPoint] = [AmidaPoint(column: current, bridgeIndex: nil, isTop: true)]
+            var points = [SpaceAmidaPoint(column: current, bridgeIndex: nil, isTop: true)]
+
             for (bridgeIndex, bridge) in bridges.enumerated() {
                 if bridge.left == current {
-                    points.append(AmidaPoint(column: current, bridgeIndex: bridgeIndex, isTop: false))
+                    points.append(SpaceAmidaPoint(column: current, bridgeIndex: bridgeIndex, isTop: false))
                     current += 1
-                    points.append(AmidaPoint(column: current, bridgeIndex: bridgeIndex, isTop: false))
+                    points.append(SpaceAmidaPoint(column: current, bridgeIndex: bridgeIndex, isTop: false))
                 } else if bridge.left + 1 == current {
-                    points.append(AmidaPoint(column: current, bridgeIndex: bridgeIndex, isTop: false))
+                    points.append(SpaceAmidaPoint(column: current, bridgeIndex: bridgeIndex, isTop: false))
                     current -= 1
-                    points.append(AmidaPoint(column: current, bridgeIndex: bridgeIndex, isTop: false))
+                    points.append(SpaceAmidaPoint(column: current, bridgeIndex: bridgeIndex, isTop: false))
                 }
             }
-            points.append(AmidaPoint(column: current, bridgeIndex: nil, isTop: false))
-            return AmidaPath(startIndex: startIndex, endIndex: current, points: points, delay: Double(startIndex) * 0.16, duration: 3.1)
+
+            points.append(SpaceAmidaPoint(column: current, bridgeIndex: nil, isTop: false))
+            return SpaceAmidaPath(startIndex: startIndex, endIndex: current, points: points, delay: Double(startIndex) * 0.14, duration: 3.2)
         }
     }
 }
 
-private struct AmidaLayout {
+private struct SpaceAmidaLayout {
     let top: CGFloat
     let bottom: CGFloat
-    let columns: [AmidaColumn]
-    let bridges: [AmidaLayoutBridge]
+    let columns: [SpaceAmidaColumn]
+    let bridges: [SpaceAmidaLayoutBridge]
 
-    func point(on path: AmidaPath, progress: Double) -> CGPoint {
-        let concrete = path.points.map { point -> CGPoint in
+    func point(on path: SpaceAmidaPath, progress: Double) -> CGPoint {
+        let points = path.points.map { point -> CGPoint in
             if point.isTop {
                 return CGPoint(x: columns[point.column].x, y: top)
             }
-            if let bridgeIndex = point.bridgeIndex {
+            if let bridgeIndex = point.bridgeIndex, bridges.indices.contains(bridgeIndex) {
                 return CGPoint(x: columns[point.column].x, y: bridges[bridgeIndex].y)
             }
             return CGPoint(x: columns[point.column].x, y: bottom)
         }
-        let target = totalLength(concrete) * CGFloat(max(0, min(1, progress)))
-        var travelled: CGFloat = 0
-        for index in 1..<concrete.count {
-            let a = concrete[index - 1]
-            let b = concrete[index]
+
+        let targetLength = totalLength(points) * CGFloat(max(0, min(1, progress)))
+        var distance: CGFloat = 0
+
+        for index in 1..<points.count {
+            let a = points[index - 1]
+            let b = points[index]
             let segment = hypot(b.x - a.x, b.y - a.y)
-            if travelled + segment >= target {
-                let t = segment == 0 ? 0 : (target - travelled) / segment
+            if distance + segment >= targetLength {
+                let t = segment == 0 ? 0 : (targetLength - distance) / segment
                 return CGPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t)
             }
-            travelled += segment
+            distance += segment
         }
-        return concrete.last ?? .zero
+
+        return points.last ?? .zero
     }
 
     private func totalLength(_ points: [CGPoint]) -> CGFloat {
@@ -540,10 +632,10 @@ private struct AmidaLayout {
     }
 }
 
-private struct AmidaPath {
+private struct SpaceAmidaPath {
     let startIndex: Int
     let endIndex: Int
-    let points: [AmidaPoint]
+    let points: [SpaceAmidaPoint]
     let delay: Double
     let duration: Double
 
@@ -554,22 +646,22 @@ private struct AmidaPath {
     }
 }
 
-private struct AmidaBridge {
+private struct SpaceAmidaBridge {
     let left: Int
     let yRank: CGFloat
 }
 
-private struct AmidaPoint {
+private struct SpaceAmidaPoint {
     let column: Int
     let bridgeIndex: Int?
     let isTop: Bool
 }
 
-private struct AmidaColumn {
+private struct SpaceAmidaColumn {
     let x: CGFloat
 }
 
-private struct AmidaLayoutBridge {
+private struct SpaceAmidaLayoutBridge {
     let index: Int
     let left: Int
     let x1: CGFloat
@@ -577,46 +669,31 @@ private struct AmidaLayoutBridge {
     let y: CGFloat
 }
 
-private struct GalaxyBackground: View {
+private struct SpaceBackground: View {
     var body: some View {
         ZStack {
             Image("andromeda-amida-bg")
                 .resizable()
                 .scaledToFill()
-                .opacity(0.58)
+                .opacity(0.56)
 
             LinearGradient(
                 colors: [
-                    Color(red: 0.02, green: 0.02, blue: 0.05).opacity(0.86),
-                    Color(red: 0.04, green: 0.09, blue: 0.13).opacity(0.58),
-                    Color(red: 0.12, green: 0.04, blue: 0.12).opacity(0.72)
+                    Color(red: 0.01, green: 0.02, blue: 0.06).opacity(0.88),
+                    Color(red: 0.02, green: 0.09, blue: 0.12).opacity(0.68),
+                    Color(red: 0.12, green: 0.03, blue: 0.10).opacity(0.78)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
 
-            RadialGradient(
-                colors: [.cyan.opacity(0.34), .purple.opacity(0.18), .clear],
-                center: .center,
-                startRadius: 20,
-                endRadius: 360
-            )
-            .blur(radius: 26)
-            .rotationEffect(.degrees(-18))
-            .scaleEffect(x: 1.5, y: 0.74)
-            .offset(x: 70, y: -120)
-
-            RadialGradient(
-                colors: [.pink.opacity(0.18), .clear],
-                center: .bottomLeading,
-                startRadius: 0,
-                endRadius: 420
-            )
+            RadialGradient(colors: [.cyan.opacity(0.34), .clear], center: .topTrailing, startRadius: 0, endRadius: 430)
+            RadialGradient(colors: [.pink.opacity(0.22), .clear], center: .bottomLeading, startRadius: 0, endRadius: 460)
         }
     }
 }
 
-private struct AmidaTextFieldStyle: TextFieldStyle {
+private struct SpaceFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
             .padding(.horizontal, 10)
@@ -627,30 +704,30 @@ private struct AmidaTextFieldStyle: TextFieldStyle {
     }
 }
 
-private struct AmidaGhostButtonStyle: ButtonStyle {
+private struct SecondarySpaceButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.caption.weight(.black))
+            .font(.headline.weight(.black))
             .frame(maxWidth: .infinity)
-            .frame(height: 48)
+            .frame(height: 50)
             .foregroundStyle(.cyan)
-            .background(.white.opacity(configuration.isPressed ? 0.12 : 0.07), in: RoundedRectangle(cornerRadius: 8))
+            .background(.white.opacity(configuration.isPressed ? 0.13 : 0.07), in: RoundedRectangle(cornerRadius: 8))
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(.cyan.opacity(0.28)))
     }
 }
 
-private struct AmidaStartButtonStyle: ButtonStyle {
+private struct PrimarySpaceButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.caption.weight(.black))
+            .font(.headline.weight(.black))
             .frame(maxWidth: .infinity)
-            .frame(height: 48)
-            .foregroundStyle(.white)
+            .frame(height: 50)
+            .foregroundStyle(.black)
             .background(
-                LinearGradient(colors: [.pink.opacity(0.38), .cyan.opacity(0.2)], startPoint: .topLeading, endPoint: .bottomTrailing),
+                LinearGradient(colors: [.yellow, .mint, .cyan], startPoint: .leading, endPoint: .trailing),
                 in: RoundedRectangle(cornerRadius: 8)
             )
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(.pink.opacity(0.52)))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(.white.opacity(0.38)))
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
     }
 }
@@ -658,24 +735,6 @@ private struct AmidaStartButtonStyle: ButtonStyle {
 private extension Array {
     subscript(safe index: Int) -> Element? {
         indices.contains(index) ? self[index] : nil
-    }
-}
-
-private struct BannerAdView: UIViewRepresentable {
-    let adUnitID: String
-
-    func makeUIView(context: Context) -> GADBannerView {
-        let banner = GADBannerView(adSize: GADAdSizeBanner)
-        banner.adUnitID = adUnitID
-        return banner
-    }
-
-    func updateUIView(_ uiView: GADBannerView, context: Context) {
-        guard uiView.rootViewController == nil else { return }
-        if let rootVC = uiView.window?.rootViewController {
-            uiView.rootViewController = rootVC
-            uiView.load(GADRequest())
-        }
     }
 }
 

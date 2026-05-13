@@ -31,7 +31,7 @@ jobs:
 
     - name: Set build number
       run: |
-        BUILD_NUM=$(( ${{ github.run_number }} + 10 ))
+        BUILD_NUM=$(( ${{ github.run_number }} + 20 ))
         echo "BUILD_NUM=$BUILD_NUM" >> $GITHUB_ENV
         sed -i "" "s/CURRENT_PROJECT_VERSION: [0-9]*/CURRENT_PROJECT_VERSION: $BUILD_NUM/" project.yml
         echo "Build number set to: $BUILD_NUM"
@@ -73,6 +73,7 @@ jobs:
     - name: Build Archive
       run: |
         xcodebuild archive \
+          -project SpaceAmida.xcodeproj \
           -scheme SpaceAmida \
           -configuration Release \
           -destination "generic/platform=iOS" \
@@ -94,6 +95,17 @@ jobs:
           -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_WDXGY9WX55.p8 \
           -authenticationKeyID WDXGY9WX55 \
           -authenticationKeyIssuerID 2be0734f-943a-4d61-9dc9-5d9045c46fec
+
+    - name: Upload IPA
+      run: |
+        IPA_PATH=$(find build/export -name "*.ipa" -print -quit)
+        test -n "$IPA_PATH" || (echo "IPA was not exported" && exit 1)
+        xcrun altool --upload-app \
+          -f "$IPA_PATH" \
+          -t ios \
+          --apiKey WDXGY9WX55 \
+          --apiIssuer 2be0734f-943a-4d61-9dc9-5d9045c46fec \
+          --verbose
 
     - name: Install PyJWT
       run: pip3 install --break-system-packages PyJWT requests
