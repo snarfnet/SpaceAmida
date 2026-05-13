@@ -16,10 +16,6 @@ targets:
     deploymentTarget: "16.0"
     sources:
       - path: SpaceAmida
-        excludes:
-          - Assets.xcassets
-    resources:
-      - SpaceAmida/Assets.xcassets
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.amasaki.spaceamida
