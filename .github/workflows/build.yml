@@ -116,7 +116,10 @@ jobs:
           -authenticationKeyIssuerID 2be0734f-943a-4d61-9dc9-5d9045c46fec
 
     - name: Install PyJWT
-      run: pip3 install --break-system-packages PyJWT requests
+      run: pip3 install --break-system-packages PyJWT requests pillow
+
+    - name: Upload App Store Screenshots
+      run: python3 scripts/upload_screenshots.py
 
     - name: Submit for Review
       run: python3 scripts/submit.py ${{ env.BUILD_NUM }}
