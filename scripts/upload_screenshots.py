@@ -63,6 +63,27 @@ def delete_screenshot_set(display_type):
             api("DELETE", f"/appScreenshotSets/{set_id}")
             print(f"Deleted existing {display_type} set: {set_id}")
 
+def existing_screenshot_set_is_ready(display_type, expected_count):
+    r = api("GET", f"/appStoreVersionLocalizations/{LOC_ID}/appScreenshotSets")
+    if r.status_code != 200:
+        raise RuntimeError(f"Failed to list screenshot sets: {r.status_code} {err(r)}")
+    for ss_set in r.json().get("data", []):
+        if ss_set["attributes"]["screenshotDisplayType"] != display_type:
+            continue
+        set_id = ss_set["id"]
+        r2 = api("GET", f"/appScreenshotSets/{set_id}/appScreenshots")
+        screenshots = r2.json().get("data", []) if r2.status_code == 200 else []
+        uploaded = []
+        for ss in screenshots:
+            attrs = ss.get("attributes") or {}
+            delivery = attrs.get("assetDeliveryState") or {}
+            if delivery.get("state") in (None, "COMPLETE"):
+                uploaded.append(ss)
+        if len(uploaded) >= expected_count:
+            print(f"Keeping existing {display_type} set: {set_id} ({len(uploaded)} screenshots)")
+            return True
+    return False
+
 def create_screenshot_set(display_type):
     r = api("POST", "/appScreenshotSets", json={"data": {
         "type": "appScreenshotSets",
@@ -76,6 +97,8 @@ def create_screenshot_set(display_type):
     return set_id
 
 def upload_screenshots(display_type, screenshots):
+    if existing_screenshot_set_is_ready(display_type, len(screenshots)):
+        return
     delete_screenshot_set(display_type)
     set_id = create_screenshot_set(display_type)
 

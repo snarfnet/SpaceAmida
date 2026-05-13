@@ -111,17 +111,27 @@ def create_review_submission():
     return None, f'Create reviewSubmission failed: {r.status_code} {short_error(r)}'
 
 def finish_review_submission(submission_id):
-    r = api('PATCH', f'/reviewSubmissions/{submission_id}', json={
-        'data': {
-            'type': 'reviewSubmissions',
-            'id': submission_id,
-            'attributes': {'submitted': True}
-        }
-    })
-    if r.status_code == 200:
-        state = r.json()['data']['attributes']['state']
-        return True, f'Submitted! State: {state}'
-    return False, f'Submit failed: {r.status_code} {short_error(r)}'
+    last_error = ''
+    for attempt in range(20):
+        r = api('PATCH', f'/reviewSubmissions/{submission_id}', json={
+            'data': {
+                'type': 'reviewSubmissions',
+                'id': submission_id,
+                'attributes': {'submitted': True}
+            }
+        })
+        if r.status_code == 200:
+            state = r.json()['data']['attributes']['state']
+            return True, f'Submitted! State: {state}'
+
+        last_error = short_error(r)
+        if 'try again later' not in last_error.lower() and 'not ready' not in last_error.lower():
+            return False, f'Submit failed: {r.status_code} {last_error}'
+
+        print(f'Submission not ready yet ({attempt + 1}/20). Waiting...')
+        time.sleep(30)
+
+    return False, f'Submit failed after waiting: {last_error}'
 
 def submit_review_submission(version_id):
     submission_id, error = create_review_submission()
