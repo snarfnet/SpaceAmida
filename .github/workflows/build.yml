@@ -44,8 +44,27 @@ jobs:
       run: |
         sed -i "" "s|<string>\$(CURRENT_PROJECT_VERSION)</string>|<string>$BUILD_NUM</string>|" SpaceAmida/Info.plist
         sed -i "" "/<key>CFBundleVersion<\/key>/{n;s|<string>[^<]*</string>|<string>$BUILD_NUM</string>|;}" SpaceAmida/Info.plist
+        /usr/libexec/PlistBuddy -c "Delete :CFBundleIconName" SpaceAmida/Info.plist 2>/dev/null || true
+        /usr/libexec/PlistBuddy -c "Add :CFBundleIconName string AppIcon" SpaceAmida/Info.plist
+        /usr/libexec/PlistBuddy -c "Delete :UIRequiresFullScreen" SpaceAmida/Info.plist 2>/dev/null || true
+        /usr/libexec/PlistBuddy -c "Add :UIRequiresFullScreen bool true" SpaceAmida/Info.plist
+        /usr/libexec/PlistBuddy -c "Delete :UILaunchScreen" SpaceAmida/Info.plist 2>/dev/null || true
+        /usr/libexec/PlistBuddy -c "Add :UILaunchScreen dict" SpaceAmida/Info.plist
+        /usr/libexec/PlistBuddy -c "Add :UILaunchScreen:UIColorName string" SpaceAmida/Info.plist
+        /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations" SpaceAmida/Info.plist 2>/dev/null || true
+        /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations array" SpaceAmida/Info.plist
+        /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationPortrait" SpaceAmida/Info.plist
+        /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:1 string UIInterfaceOrientationPortraitUpsideDown" SpaceAmida/Info.plist
+        /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:2 string UIInterfaceOrientationLandscapeLeft" SpaceAmida/Info.plist
+        /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:3 string UIInterfaceOrientationLandscapeRight" SpaceAmida/Info.plist
+        /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations~ipad" SpaceAmida/Info.plist 2>/dev/null || true
+        /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad array" SpaceAmida/Info.plist
+        /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:0 string UIInterfaceOrientationPortrait" SpaceAmida/Info.plist
+        /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:1 string UIInterfaceOrientationPortraitUpsideDown" SpaceAmida/Info.plist
+        /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:2 string UIInterfaceOrientationLandscapeLeft" SpaceAmida/Info.plist
+        /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:3 string UIInterfaceOrientationLandscapeRight" SpaceAmida/Info.plist
         echo "Info.plist after patch:"
-        grep -A1 CFBundleVersion SpaceAmida/Info.plist
+        plutil -p SpaceAmida/Info.plist | grep -E "CFBundleVersion|CFBundleIconName|UISupportedInterfaceOrientations|UIRequiresFullScreen|UILaunchScreen"
 
     - name: Import Distribution Certificate
       env:
