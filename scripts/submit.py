@@ -21,6 +21,71 @@ def api(method, path, **kwargs):
         headers=headers(), **kwargs)
     return r
 
+def short_error(r):
+    try:
+        payload = r.json()
+        errors = payload.get('errors') or []
+        if errors:
+            parts = []
+            for err in errors[:3]:
+                code = err.get('code', 'UNKNOWN')
+                detail = err.get('detail') or err.get('title') or ''
+                parts.append(f'{code}: {detail}')
+            return ' | '.join(parts)
+    except Exception:
+        pass
+    return r.text[:500]
+
+def submit_legacy(version_id):
+    return api('POST', '/appStoreVersionSubmissions', json={
+        'data': {
+            'type': 'appStoreVersionSubmissions',
+            'relationships': {
+                'appStoreVersion': {
+                    'data': {'type': 'appStoreVersions', 'id': version_id}
+                }
+            }
+        }
+    })
+
+def submit_review_submission(version_id):
+    r = api('POST', '/reviewSubmissions', json={
+        'data': {
+            'type': 'reviewSubmissions',
+            'relationships': {'app': {'data': {'type': 'apps', 'id': APP_ID}}}
+        }
+    })
+    if r.status_code != 201:
+        return False, f'Create reviewSubmission failed: {r.status_code} {short_error(r)}'
+
+    submission_id = r.json()['data']['id']
+    print(f'ReviewSubmission created: {submission_id}')
+
+    r = api('POST', '/reviewSubmissionItems', json={
+        'data': {
+            'type': 'reviewSubmissionItems',
+            'relationships': {
+                'reviewSubmission': {'data': {'type': 'reviewSubmissions', 'id': submission_id}},
+                'appStoreVersion': {'data': {'type': 'appStoreVersions', 'id': version_id}}
+            }
+        }
+    })
+    if r.status_code not in (200, 201):
+        return False, f'Add reviewSubmissionItem failed: {r.status_code} {short_error(r)}'
+    print(f'Add item: {r.status_code}')
+
+    r = api('PATCH', f'/reviewSubmissions/{submission_id}', json={
+        'data': {
+            'type': 'reviewSubmissions',
+            'id': submission_id,
+            'attributes': {'submitted': True}
+        }
+    })
+    if r.status_code == 200:
+        state = r.json()['data']['attributes']['state']
+        return True, f'Submitted! State: {state}'
+    return False, f'Submit failed: {r.status_code} {short_error(r)}'
+
 print(f'Waiting for build {BUILD_NUMBER} to be processed...')
 build_id = None
 for i in range(80):
@@ -35,12 +100,15 @@ for i in range(80):
 
 if not build_id:
     print('WARNING: Build not found after 40 minutes. Check ASC manually.')
-    sys.exit(0)
+    sys.exit(1)
 
 # Set export compliance
 r = api('PATCH', f'/builds/{build_id}',
     json={'data': {'type': 'builds', 'id': build_id, 'attributes': {'usesNonExemptEncryption': False}}})
 print(f'Export compliance: {r.status_code}')
+if r.status_code not in (200, 204):
+    print(f'Export compliance failed: {short_error(r)}')
+    sys.exit(1)
 
 # Find version - check all states
 version_id = None
@@ -77,40 +145,25 @@ print(f'Version ID: {version_id} state={version_state}')
 r = api('PATCH', f'/appStoreVersions/{version_id}/relationships/build',
     json={'data': {'type': 'builds', 'id': build_id}})
 print(f'Build assigned: {r.status_code}')
+if r.status_code not in (200, 204):
+    print(f'Build assignment failed: {short_error(r)}')
+    sys.exit(1)
 
-# Submit via reviewSubmissions API
-r = api('POST', '/reviewSubmissions', json={
-    'data': {
-        'type': 'reviewSubmissions',
-        'relationships': {'app': {'data': {'type': 'apps', 'id': APP_ID}}}
-    }
-})
-if r.status_code != 201:
-    print(f'Create reviewSubmission failed: {r.status_code} {r.text[:300]}')
+# First submissions and rejected first releases can require the direct version
+# submission endpoint. If Apple rejects that route, try the newer review
+# submissions API and fail loudly if both routes are blocked.
+r = submit_legacy(version_id)
+if r.status_code in (200, 201):
+    print('Submitted via appStoreVersionSubmissions.')
     sys.exit(0)
-submission_id = r.json()['data']['id']
-print(f'ReviewSubmission created: {submission_id}')
 
-r = api('POST', '/reviewSubmissionItems', json={
-    'data': {
-        'type': 'reviewSubmissionItems',
-        'relationships': {
-            'reviewSubmission': {'data': {'type': 'reviewSubmissions', 'id': submission_id}},
-            'appStoreVersion': {'data': {'type': 'appStoreVersions', 'id': version_id}}
-        }
-    }
-})
-print(f'Add item: {r.status_code}')
+legacy_error = f'Legacy submit failed: {r.status_code} {short_error(r)}'
+print(legacy_error)
 
-r = api('PATCH', f'/reviewSubmissions/{submission_id}', json={
-    'data': {
-        'type': 'reviewSubmissions',
-        'id': submission_id,
-        'attributes': {'submitted': True}
-    }
-})
-if r.status_code == 200:
-    state = r.json()['data']['attributes']['state']
-    print(f'Submitted! State: {state}')
-else:
-    print(f'Submit failed: {r.status_code} {r.text[:300]}')
+ok, message = submit_review_submission(version_id)
+print(message)
+if ok:
+    sys.exit(0)
+
+print('Submission failed. Check App Store Connect version state and required metadata.')
+sys.exit(1)
