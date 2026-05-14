@@ -203,6 +203,13 @@ def submit_review_submission(version_id):
         if existing:
             existing_id = existing.group(1)
             print(f'App version is already in reviewSubmission: {existing_id}')
+            if existing_id != submission_id:
+                remove_review_submission_items(existing_id)
+                r = add_review_submission_item(submission_id, version_id)
+                if r.status_code not in (200, 201):
+                    return False, f'Re-add reviewSubmissionItem failed: {r.status_code} {short_error(r)}'
+                print(f'Add item after cleanup: {r.status_code}')
+                return finish_review_submission(submission_id)
             return finish_review_submission(existing_id)
         if 'already exists' not in error.lower() and 'already been taken' not in error.lower():
             return False, f'Add reviewSubmissionItem failed: {r.status_code} {error}'
