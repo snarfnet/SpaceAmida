@@ -43,21 +43,26 @@ def short_error(r):
     return r.text[:500]
 
 def delete_existing_version_submission(version_id):
-    r = api('GET', f'/appStoreVersions/{version_id}/relationships/appStoreVersionSubmission')
+    r = api('GET', f'/appStoreVersions/{version_id}/appStoreVersionSubmission')
+    if r.status_code == 404:
+        print('No existing appStoreVersionSubmission found.')
+        return False
     if r.status_code != 200:
         print(f'Could not check old version submission: {r.status_code} {short_error(r)}')
-        return
+        return False
 
     submission = (r.json().get('data') or {})
     submission_id = submission.get('id')
     if not submission_id:
         print('No old appStoreVersionSubmission found.')
-        return
+        return False
 
     print(f'Deleting old appStoreVersionSubmission: {submission_id}')
     r = api('DELETE', f'/appStoreVersionSubmissions/{submission_id}')
     if r.status_code not in (200, 204, 404):
         print(f'Old submission delete failed: {r.status_code} {short_error(r)}')
+        return False
+    return True
 
 def submit_legacy(version_id):
     return api('POST', '/appStoreVersionSubmissions', json={
@@ -148,7 +153,9 @@ def remove_review_submission_items(submission_id):
             continue
         r = api('DELETE', f'/reviewSubmissionItems/{item_id}')
         print(f'Delete reviewSubmissionItem {item_id}: {r.status_code}')
-        ok = ok and r.status_code in (200, 204, 404)
+        if r.status_code not in (200, 202, 204, 404):
+            print(f'ReviewSubmissionItem delete failed: {short_error(r)}')
+        ok = ok and r.status_code in (200, 202, 204, 404)
     return ok
 
 def add_review_submission_item(submission_id, version_id):
@@ -210,6 +217,13 @@ def submit_review_submission(version_id):
                         print(f'Add item after cleanup: {r.status_code}')
                         return finish_review_submission(submission_id)
                     print(f'Re-add reviewSubmissionItem failed: {r.status_code} {short_error(r)}')
+
+                if delete_existing_version_submission(version_id):
+                    r = add_review_submission_item(submission_id, version_id)
+                    if r.status_code in (200, 201):
+                        print(f'Add item after deleting appStoreVersionSubmission: {r.status_code}')
+                        return finish_review_submission(submission_id)
+                    print(f'Re-add after appStoreVersionSubmission delete failed: {r.status_code} {short_error(r)}')
 
                 print(f'Falling back to existing reviewSubmission: {existing_id}')
                 return finish_review_submission(existing_id)
