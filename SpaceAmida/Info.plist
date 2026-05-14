@@ -20,6 +20,8 @@
     <string>APPL</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
+    <key>NSUserTrackingUsageDescription</key>
+    <string>広告の効果測定と、より関連性の高い広告表示のために使用します。許可しなくてもアプリは使えます。</string>
     <key>UILaunchScreen</key>
     <dict>
         <key>UIColorName</key>

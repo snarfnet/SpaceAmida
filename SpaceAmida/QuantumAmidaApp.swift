@@ -1,5 +1,6 @@
 import SwiftUI
 import AudioToolbox
+import AppTrackingTransparency
 
 @main
 struct QuantumAmidaApp: App {
@@ -20,33 +21,41 @@ struct QuantumAmidaView: View {
     @State private var soundEnabled = true
     @State private var isRunning = false
     @State private var history: [String] = []
+    @AppStorage("didRequestTrackingPermission") private var didRequestTrackingPermission = false
 
     private var count: Int { Int(laneCount.rounded()) }
     private var visibleNames: [String] { Array(names.prefix(count)) }
     private var visiblePrizes: [String] { Array(prizes.prefix(count)) }
 
     var body: some View {
-        ZStack {
-            SpaceBackground()
-                .ignoresSafeArea()
+        GeometryReader { proxy in
+            let isWide = proxy.size.width >= 760
+            let boardHeight = isWide
+                ? min(max(proxy.size.height - 210, 420), 680)
+                : min(max(proxy.size.height * 0.48, 340), 470)
 
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 16) {
-                    header
-                    commandPanel
-                    boardPanel
-                    resultPanel
-                    historyPanel
+            ZStack {
+                SpaceBackground()
+                    .ignoresSafeArea()
+
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 16) {
+                        header
+                        mainPanels(isWide: isWide, boardHeight: boardHeight)
+                    }
+                    .frame(maxWidth: isWide ? 1180 : 680)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, isWide ? 24 : 16)
+                    .padding(.top, 16)
+                    .padding(.bottom, 28)
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
-                .padding(.bottom, 28)
             }
         }
         .preferredColorScheme(.dark)
         .onAppear {
             normalizeArrays()
             rebuildBoard()
+            requestTrackingPermissionIfNeeded()
         }
         .onChange(of: count) { _ in
             normalizeArrays()
@@ -54,6 +63,32 @@ struct QuantumAmidaView: View {
         }
         .onReceive(Timer.publish(every: 1.0 / 30.0, on: .main, in: .common).autoconnect()) { date in
             advanceAnimation(date)
+        }
+    }
+
+    @ViewBuilder
+    private func mainPanels(isWide: Bool, boardHeight: CGFloat) -> some View {
+        if isWide {
+            HStack(alignment: .top, spacing: 18) {
+                VStack(spacing: 16) {
+                    commandPanel
+                    historyPanel
+                }
+                .frame(width: 390)
+
+                VStack(spacing: 16) {
+                    boardPanel(height: boardHeight)
+                    resultPanel
+                }
+                .frame(maxWidth: .infinity)
+            }
+        } else {
+            VStack(spacing: 16) {
+                commandPanel
+                boardPanel(height: boardHeight)
+                resultPanel
+                historyPanel
+            }
         }
     }
 
@@ -168,7 +203,7 @@ struct QuantumAmidaView: View {
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(.cyan.opacity(0.22)))
     }
 
-    private var boardPanel: some View {
+    private func boardPanel(height: CGFloat) -> some View {
         TimelineView(.animation) { timeline in
             let elapsed = startDate.map { timeline.date.timeIntervalSince($0) } ?? 0
             SpaceAmidaCanvas(
@@ -179,7 +214,7 @@ struct QuantumAmidaView: View {
                 isRunning: isRunning,
                 revealedLanes: revealedLanes
             )
-            .frame(height: 470)
+            .frame(height: height)
             .background(.black.opacity(0.38), in: RoundedRectangle(cornerRadius: 8))
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(.cyan.opacity(0.26)))
         }
@@ -333,6 +368,19 @@ struct QuantumAmidaView: View {
     private func playTap() {
         guard soundEnabled else { return }
         AudioServicesPlaySystemSound(1104)
+    }
+
+    private func requestTrackingPermissionIfNeeded() {
+        guard !didRequestTrackingPermission else { return }
+        guard ATTrackingManager.trackingAuthorizationStatus == .notDetermined else {
+            didRequestTrackingPermission = true
+            return
+        }
+
+        didRequestTrackingPermission = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            ATTrackingManager.requestTrackingAuthorization { _ in }
+        }
     }
 }
 

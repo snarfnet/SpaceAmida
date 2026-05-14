@@ -162,6 +162,35 @@ def add_review_submission_item(submission_id, version_id):
         }
     })
 
+def update_review_notes(version_id):
+    notes = (
+        'Guideline 5.1.2(i): The AppTrackingTransparency permission request is shown shortly after first launch. '
+        'The Info.plist includes NSUserTrackingUsageDescription. '
+        'Guideline 4: The iPad layout was updated to use an adaptive two-column layout on wide screens, '
+        'with a responsive board height so content and controls are not cropped on iPad Air 11-inch.'
+    )
+    r = api('GET', f'/appStoreVersions/{version_id}/appStoreReviewDetail')
+    if r.status_code != 200:
+        print(f'Could not load review detail for notes: {r.status_code} {short_error(r)}')
+        return
+
+    detail = r.json().get('data') or {}
+    detail_id = detail.get('id')
+    if not detail_id:
+        print('No appStoreReviewDetail found for notes.')
+        return
+
+    r = api('PATCH', f'/appStoreReviewDetails/{detail_id}', json={
+        'data': {
+            'type': 'appStoreReviewDetails',
+            'id': detail_id,
+            'attributes': {'notes': notes}
+        }
+    })
+    print(f'Review notes updated: {r.status_code}')
+    if r.status_code not in (200, 204):
+        print(f'Review notes update failed: {short_error(r)}')
+
 def submit_review_submission(version_id):
     submission_id, error = create_review_submission()
     if not submission_id:
@@ -238,6 +267,7 @@ if not version_id or version_state in ('READY_FOR_DISTRIBUTION',):
     version_state = 'PREPARE_FOR_SUBMISSION'
 
 print(f'Version ID: {version_id} state={version_state}')
+update_review_notes(version_id)
 
 # Assign build
 r = api('PATCH', f'/appStoreVersions/{version_id}/relationships/build',
