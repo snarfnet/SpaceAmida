@@ -280,8 +280,11 @@ r = api('PATCH', f'/builds/{build_id}',
     json={'data': {'type': 'builds', 'id': build_id, 'attributes': {'usesNonExemptEncryption': False}}})
 print(f'Export compliance: {r.status_code}')
 if r.status_code not in (200, 204):
-    print(f'Export compliance failed: {short_error(r)}')
-    sys.exit(1)
+    if r.status_code == 409 and 'already set' in short_error(r).lower():
+        print('Export compliance was already set.')
+    else:
+        print(f'Export compliance failed: {short_error(r)}')
+        sys.exit(1)
 
 # Find version - check all states
 version_id = None
