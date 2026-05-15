@@ -31,7 +31,7 @@ struct QuantumAmidaView: View {
         GeometryReader { proxy in
             let isWide = proxy.size.width >= 760
             let boardHeight = isWide
-                ? min(max(proxy.size.height - 210, 420), 680)
+                ? min(max(proxy.size.height - 250, 390), 620)
                 : min(max(proxy.size.height * 0.48, 340), 470)
 
             ZStack {
@@ -74,7 +74,7 @@ struct QuantumAmidaView: View {
                     commandPanel
                     historyPanel
                 }
-                .frame(width: 390)
+                .frame(width: 440)
 
                 VStack(spacing: 16) {
                     boardPanel(height: boardHeight)
@@ -101,14 +101,14 @@ struct QuantumAmidaView: View {
                     .tracking(1.8)
 
                 Text("スペースあみだ")
-                    .font(.system(size: 36, weight: .black, design: .rounded))
+                    .font(.system(size: 32, weight: .black, design: .rounded))
                     .lineLimit(1)
-                    .minimumScaleFactor(0.72)
+                    .minimumScaleFactor(0.62)
 
                 Text("星のレーンを走らせて、今日の役割を決める。")
                     .font(.callout.weight(.semibold))
                     .foregroundStyle(.white.opacity(0.72))
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer(minLength: 8)
@@ -147,7 +147,7 @@ struct QuantumAmidaView: View {
 
             VStack(alignment: .leading, spacing: 10) {
                 sectionTitle("クルー")
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 158), spacing: 10)], spacing: 10) {
                     ForEach(0..<count, id: \.self) { index in
                         FieldTile(index: index, title: "レーン \(index + 1)", text: binding($names, index: index), disabled: isRunning)
                     }
@@ -172,7 +172,7 @@ struct QuantumAmidaView: View {
                     .disabled(isRunning)
                 }
 
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 158), spacing: 10)], spacing: 10) {
                     ForEach(0..<count, id: \.self) { index in
                         FieldTile(index: index, title: "結果 \(index + 1)", text: binding($prizes, index: index), disabled: isRunning)
                     }
@@ -232,7 +232,7 @@ struct QuantumAmidaView: View {
                     .monospacedDigit()
             }
 
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 10)], spacing: 10) {
                 ForEach(0..<count, id: \.self) { index in
                     let revealed = revealedLanes.contains(index)
                     VStack(alignment: .leading, spacing: 6) {
@@ -240,13 +240,15 @@ struct QuantumAmidaView: View {
                             .font(.caption.weight(.bold))
                             .foregroundStyle(.white.opacity(0.58))
                             .lineLimit(1)
+                            .minimumScaleFactor(0.72)
                         Text(revealed ? outputs[index] : "待機中")
                             .font(.headline.weight(.black))
                             .foregroundStyle(revealed ? .white : .white.opacity(0.48))
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.68)
+                            .lineLimit(3)
+                            .minimumScaleFactor(0.62)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
+                    .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
                     .padding(12)
                     .background(revealed ? .mint.opacity(0.15) : .white.opacity(0.055), in: RoundedRectangle(cornerRadius: 8))
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(revealed ? .mint.opacity(0.48) : .white.opacity(0.11)))
@@ -276,6 +278,7 @@ struct QuantumAmidaView: View {
                     .font(.footnote)
                     .foregroundStyle(.white.opacity(0.48))
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(14)
                     .background(.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 8))
             } else {
@@ -289,7 +292,7 @@ struct QuantumAmidaView: View {
                             Text(value)
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(.white.opacity(0.86))
-                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
                             Spacer()
                         }
                         .padding(12)
@@ -397,6 +400,7 @@ private struct FieldTile: View {
                 .foregroundStyle(SpaceAmidaBoard.palette[index % SpaceAmidaBoard.palette.count])
             TextField(title, text: $text)
                 .textFieldStyle(SpaceFieldStyle())
+                .font(.subheadline.weight(.semibold))
                 .disabled(disabled)
         }
     }
@@ -496,9 +500,10 @@ private struct SpaceAmidaCanvas: View {
     }
 
     private func drawBadge(context: inout GraphicsContext, text: String, point: CGPoint, color: Color) {
-        let resolved = context.resolve(Text(text).font(.caption.weight(.black)).foregroundColor(.white))
-        let width = min(max(resolved.measure(in: CGSize(width: 132, height: 30)).width + 18, 58), 126)
-        let rect = CGRect(x: point.x - width / 2, y: point.y - 15, width: width, height: 30)
+        let displayText = text.count > 8 ? String(text.prefix(8)) + "…" : text
+        let resolved = context.resolve(Text(displayText).font(.caption2.weight(.black)).foregroundColor(.white))
+        let width = min(max(resolved.measure(in: CGSize(width: 150, height: 32)).width + 20, 62), 150)
+        let rect = CGRect(x: point.x - width / 2, y: point.y - 16, width: width, height: 32)
         context.fill(Path(roundedRect: rect, cornerRadius: 8), with: .color(.black.opacity(0.72)))
         context.stroke(Path(roundedRect: rect, cornerRadius: 8), with: .color(color.opacity(0.72)), lineWidth: 1)
         context.draw(resolved, at: point)
@@ -745,7 +750,7 @@ private struct SpaceFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
             .padding(.horizontal, 10)
-            .frame(height: 40)
+            .frame(minHeight: 44)
             .foregroundStyle(.white)
             .background(.black.opacity(0.42), in: RoundedRectangle(cornerRadius: 8))
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(.cyan.opacity(0.22)))
@@ -756,8 +761,10 @@ private struct SecondarySpaceButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.headline.weight(.black))
+            .lineLimit(1)
+            .minimumScaleFactor(0.72)
             .frame(maxWidth: .infinity)
-            .frame(height: 50)
+            .frame(minHeight: 54)
             .foregroundStyle(.cyan)
             .background(.white.opacity(configuration.isPressed ? 0.13 : 0.07), in: RoundedRectangle(cornerRadius: 8))
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(.cyan.opacity(0.28)))
@@ -768,8 +775,10 @@ private struct PrimarySpaceButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.headline.weight(.black))
+            .lineLimit(1)
+            .minimumScaleFactor(0.72)
             .frame(maxWidth: .infinity)
-            .frame(height: 50)
+            .frame(minHeight: 54)
             .foregroundStyle(.black)
             .background(
                 LinearGradient(colors: [.yellow, .mint, .cyan], startPoint: .leading, endPoint: .trailing),

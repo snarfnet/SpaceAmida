@@ -188,8 +188,9 @@ def update_review_notes(version_id):
     notes = (
         'Guideline 5.1.2(i): The AppTrackingTransparency permission request is shown shortly after first launch. '
         'The Info.plist includes NSUserTrackingUsageDescription. '
-        'Guideline 4: The iPad layout was updated to use an adaptive two-column layout on wide screens, '
-        'with a responsive board height so content and controls are not cropped on iPad Air 11-inch.'
+        'Guideline 4: This build further reduces text cut-off on iPad Air 11-inch by widening the command panel, '
+        'using adaptive grids, increasing result row heights, allowing wrapping for history and helper text, '
+        'and shortening long board labels.'
     )
     r = api('GET', f'/appStoreVersions/{version_id}/appStoreReviewDetail')
     if r.status_code != 200:
