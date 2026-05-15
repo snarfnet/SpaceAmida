@@ -1,0 +1,27 @@
+name: Submit Existing Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: App Store Connect build number to submit
+        required: true
+
+jobs:
+  submit:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up ASC API Key
+        env:
+          ASC_API_KEY_CONTENT: ${{ secrets.ASC_API_KEY_CONTENT }}
+        run: |
+          echo "$ASC_API_KEY_CONTENT" | base64 -D > /tmp/asc_key.p8
+
+      - name: Install Python dependencies
+        run: pip3 install --break-system-packages PyJWT requests
+
+      - name: Submit existing build
+        run: python3 scripts/submit.py ${{ inputs.build_number }}

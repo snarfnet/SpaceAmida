@@ -95,6 +95,21 @@ def reusable_review_submission_id():
             return submission_id
     return None
 
+def cancel_review_submission(submission_id):
+    r = api('PATCH', f'/reviewSubmissions/{submission_id}', json={
+        'data': {
+            'type': 'reviewSubmissions',
+            'id': submission_id,
+            'attributes': {'canceled': True}
+        }
+    })
+    print(f'Cancel reviewSubmission {submission_id}: {r.status_code}')
+    if r.status_code in (200, 202, 204):
+        time.sleep(20)
+        return True
+    print(f'Cancel reviewSubmission failed: {short_error(r)}')
+    return False
+
 def create_review_submission():
     r = api('POST', '/reviewSubmissions', json={
         'data': {
@@ -211,6 +226,13 @@ def submit_review_submission(version_id):
             existing_id = existing.group(1)
             print(f'App version is already in reviewSubmission: {existing_id}')
             if existing_id != submission_id:
+                if cancel_review_submission(existing_id):
+                    r = add_review_submission_item(submission_id, version_id)
+                    if r.status_code in (200, 201):
+                        print(f'Add item after canceling old reviewSubmission: {r.status_code}')
+                        return finish_review_submission(submission_id)
+                    print(f'Re-add after canceling old reviewSubmission failed: {r.status_code} {short_error(r)}')
+
                 if remove_review_submission_items(existing_id):
                     r = add_review_submission_item(submission_id, version_id)
                     if r.status_code in (200, 201):
@@ -292,6 +314,12 @@ if not version_id or version_state in ('READY_FOR_DISTRIBUTION',):
 
 print(f'Version ID: {version_id} state={version_state}')
 update_review_notes(version_id)
+
+for blocking_state in ('UNRESOLVED_ISSUES', 'READY_FOR_REVIEW'):
+    r = api('GET', f'/apps/{APP_ID}/reviewSubmissions?filter[state]={blocking_state}&limit=50')
+    if r.status_code == 200:
+        for submission in r.json().get('data') or []:
+            cancel_review_submission(submission['id'])
 
 # Assign build
 r = api('PATCH', f'/appStoreVersions/{version_id}/relationships/build',
