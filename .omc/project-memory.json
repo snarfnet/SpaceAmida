@@ -1,0 +1,75 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1779313094046,
+  "projectRoot": "C:\\Users\\Windows\\SpaceAmida",
+  "techStack": {
+    "languages": [],
+    "frameworks": [],
+    "packageManager": null,
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "scripts"
+    ],
+    "gitBranches": null
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "screenshots": {
+      "path": "screenshots",
+      "purpose": null,
+      "fileCount": 3,
+      "lastAccessed": 1779313093989,
+      "keyFiles": [
+        "ss1_title.png",
+        "ss2_board.png",
+        "ss3_results.png"
+      ]
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 2,
+      "lastAccessed": 1779313093991,
+      "keyFiles": [
+        "submit.py",
+        "upload_screenshots.py"
+      ]
+    },
+    "SpaceAmida": {
+      "path": "SpaceAmida",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1779313093993,
+      "keyFiles": [
+        "Info.plist",
+        "QuantumAmidaApp.swift"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "SpaceAmida\\QuantumAmidaApp.swift",
+      "accessCount": 7,
+      "lastAccessed": 1779313226082,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

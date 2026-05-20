@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"GIT_EDITOR=true git rebase --continue 2>&1\",\"description\":\"Continue SpaceAmida rebase\"}",
+  "error": "Exit code 1\nYou must edit all merge conflicts and then\nmark them as resolved using git add",
+  "timestamp": "2026-05-20T21:40:50.461Z",
+  "retry_count": 3
+}
