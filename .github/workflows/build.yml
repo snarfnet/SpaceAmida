@@ -66,21 +66,6 @@ jobs:
         echo "Info.plist after patch:"
         plutil -p SpaceAmida/Info.plist | grep -E "CFBundleVersion|CFBundleIconName|UISupportedInterfaceOrientations|UIRequiresFullScreen|UILaunchScreen"
 
-    - name: Import Distribution Certificate
-      env:
-        CERT_BASE64: ${{ secrets.DIST_CERT_BASE64 }}
-        CERT_PASSWORD: ${{ secrets.DIST_CERT_PASSWORD }}
-        KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-      run: |
-        security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-        security default-keychain -s build.keychain
-        security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-        security set-keychain-settings -t 3600 -u build.keychain
-        echo "$CERT_BASE64" | base64 -D > cert.p12
-        security import cert.p12 -k build.keychain -P "$CERT_PASSWORD" -T /usr/bin/codesign
-        security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" build.keychain
-        rm cert.p12
-
     - name: Set up ASC API Key
       env:
         ASC_API_KEY_CONTENT: ${{ secrets.ASC_API_KEY_CONTENT }}
@@ -114,6 +99,14 @@ jobs:
           -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_WDXGY9WX55.p8 \
           -authenticationKeyID WDXGY9WX55 \
           -authenticationKeyIssuerID 2be0734f-943a-4d61-9dc9-5d9045c46fec
+
+    - name: Upload IPA
+      run: |
+        xcrun altool --upload-app \
+          -f build/export/SpaceAmida.ipa \
+          -t ios \
+          --apiKey WDXGY9WX55 \
+          --apiIssuer 2be0734f-943a-4d61-9dc9-5d9045c46fec
 
     - name: Install PyJWT
       run: pip3 install --break-system-packages PyJWT requests pillow
