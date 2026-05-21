@@ -30,24 +30,27 @@ struct QuantumAmidaView: View {
     var body: some View {
         GeometryReader { proxy in
             let isWide = proxy.size.width >= 760
+            let isCompact = proxy.size.height < 750
             let boardHeight = isWide
-                ? min(max(proxy.size.height - 250, 420), 720)
-                : min(max(proxy.size.height * 0.48, 360), 560)
+                ? min(max(proxy.size.height - 250, 380), 720)
+                : isCompact
+                    ? min(max(proxy.size.height * 0.38, 280), 420)
+                    : min(max(proxy.size.height * 0.42, 320), 500)
 
             ZStack {
                 SpaceBackground()
                     .ignoresSafeArea()
 
                 ScrollView(showsIndicators: false) {
-                    VStack(spacing: 16) {
+                    VStack(spacing: 10) {
                         header
                         mainPanels(isWide: isWide, boardHeight: boardHeight)
                     }
                     .frame(maxWidth: isWide ? 1200 : .infinity)
                     .frame(maxWidth: .infinity)
-                    .padding(.horizontal, isWide ? 24 : 16)
-                    .padding(.top, 16)
-                    .padding(.bottom, 28)
+                    .padding(.horizontal, isWide ? 24 : 12)
+                    .padding(.top, 10)
+                    .padding(.bottom, 20)
                 }
             }
         }
@@ -69,21 +72,21 @@ struct QuantumAmidaView: View {
     @ViewBuilder
     private func mainPanels(isWide: Bool, boardHeight: CGFloat) -> some View {
         if isWide {
-            HStack(alignment: .top, spacing: 18) {
-                VStack(spacing: 16) {
+            HStack(alignment: .top, spacing: 14) {
+                VStack(spacing: 10) {
                     commandPanel
                     historyPanel
                 }
-                .frame(width: 440)
+                .frame(width: 400)
 
-                VStack(spacing: 16) {
+                VStack(spacing: 10) {
                     boardPanel(height: boardHeight)
                     resultPanel
                 }
                 .frame(maxWidth: .infinity)
             }
         } else {
-            VStack(spacing: 16) {
+            VStack(spacing: 10) {
                 commandPanel
                 boardPanel(height: boardHeight)
                 resultPanel
@@ -129,7 +132,7 @@ struct QuantumAmidaView: View {
     }
 
     private var commandPanel: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 10) {
             HStack {
                 Label("参加レーン", systemImage: "slider.horizontal.3")
                     .font(.caption.weight(.black))
@@ -145,16 +148,16 @@ struct QuantumAmidaView: View {
                 .tint(.cyan)
                 .disabled(isRunning)
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 6) {
                 sectionTitle("クルー")
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 158), spacing: 10)], spacing: 10) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 8)], spacing: 8) {
                     ForEach(0..<count, id: \.self) { index in
                         FieldTile(index: index, title: "レーン \(index + 1)", text: binding($names, index: index), disabled: isRunning)
                     }
                 }
             }
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     sectionTitle("ゴール")
                     Spacer()
@@ -172,14 +175,14 @@ struct QuantumAmidaView: View {
                     .disabled(isRunning)
                 }
 
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 158), spacing: 10)], spacing: 10) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 8)], spacing: 8) {
                     ForEach(0..<count, id: \.self) { index in
                         FieldTile(index: index, title: "結果 \(index + 1)", text: binding($prizes, index: index), disabled: isRunning)
                     }
                 }
             }
 
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 Button {
                     rebuildBoard()
                     playTap()
@@ -198,7 +201,7 @@ struct QuantumAmidaView: View {
                 .disabled(isRunning)
             }
         }
-        .padding(16)
+        .padding(12)
         .background(.black.opacity(0.44), in: RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(.cyan.opacity(0.22)))
     }
@@ -232,7 +235,7 @@ struct QuantumAmidaView: View {
                     .monospacedDigit()
             }
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 10)], spacing: 10) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 8)], spacing: 8) {
                 ForEach(0..<count, id: \.self) { index in
                     let revealed = revealedLanes.contains(index)
                     VStack(alignment: .leading, spacing: 6) {
@@ -248,14 +251,14 @@ struct QuantumAmidaView: View {
                             .minimumScaleFactor(0.62)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
-                    .padding(12)
+                    .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+                    .padding(10)
                     .background(revealed ? .mint.opacity(0.15) : .white.opacity(0.055), in: RoundedRectangle(cornerRadius: 8))
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(revealed ? .mint.opacity(0.48) : .white.opacity(0.11)))
                 }
             }
         }
-        .padding(14)
+        .padding(10)
         .background(.black.opacity(0.30), in: RoundedRectangle(cornerRadius: 8))
     }
 
@@ -750,7 +753,7 @@ private struct SpaceFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
             .padding(.horizontal, 10)
-            .frame(minHeight: 44)
+            .frame(minHeight: 38)
             .foregroundStyle(.white)
             .background(.black.opacity(0.42), in: RoundedRectangle(cornerRadius: 8))
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(.cyan.opacity(0.22)))
@@ -764,7 +767,7 @@ private struct SecondarySpaceButtonStyle: ButtonStyle {
             .lineLimit(1)
             .minimumScaleFactor(0.72)
             .frame(maxWidth: .infinity)
-            .frame(minHeight: 54)
+            .frame(minHeight: 46)
             .foregroundStyle(.cyan)
             .background(.white.opacity(configuration.isPressed ? 0.13 : 0.07), in: RoundedRectangle(cornerRadius: 8))
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(.cyan.opacity(0.28)))
@@ -778,7 +781,7 @@ private struct PrimarySpaceButtonStyle: ButtonStyle {
             .lineLimit(1)
             .minimumScaleFactor(0.72)
             .frame(maxWidth: .infinity)
-            .frame(minHeight: 54)
+            .frame(minHeight: 46)
             .foregroundStyle(.black)
             .background(
                 LinearGradient(colors: [.yellow, .mint, .cyan], startPoint: .leading, endPoint: .trailing),
