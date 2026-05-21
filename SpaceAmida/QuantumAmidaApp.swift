@@ -31,8 +31,8 @@ struct QuantumAmidaView: View {
         GeometryReader { proxy in
             let isWide = proxy.size.width >= 760
             let boardHeight = isWide
-                ? min(max(proxy.size.height - 250, 390), 680)
-                : min(max(proxy.size.height * 0.50, 380), 520)
+                ? min(max(proxy.size.height - 250, 420), 720)
+                : min(max(proxy.size.height * 0.48, 360), 560)
 
             ZStack {
                 SpaceBackground()
@@ -43,7 +43,7 @@ struct QuantumAmidaView: View {
                         header
                         mainPanels(isWide: isWide, boardHeight: boardHeight)
                     }
-                    .frame(maxWidth: isWide ? 1180 : 680)
+                    .frame(maxWidth: isWide ? 1200 : .infinity)
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, isWide ? 24 : 16)
                     .padding(.top, 16)
@@ -487,13 +487,13 @@ private struct SpaceAmidaCanvas: View {
             drawBadge(
                 context: &context,
                 text: names[safe: index]?.isEmpty == false ? names[index] : "クルー \(index + 1)",
-                point: CGPoint(x: layout.columns[index].x, y: layout.top - 30),
+                point: CGPoint(x: layout.columns[index].x, y: layout.top - 22),
                 color: SpaceAmidaBoard.palette[index % SpaceAmidaBoard.palette.count]
             )
             drawBadge(
                 context: &context,
                 text: prizes[safe: index]?.isEmpty == false ? prizes[index] : "ゴール \(index + 1)",
-                point: CGPoint(x: layout.columns[index].x, y: layout.bottom + 30),
+                point: CGPoint(x: layout.columns[index].x, y: layout.bottom + 22),
                 color: revealedLanes.contains(index) ? .mint : .white.opacity(0.42)
             )
         }
@@ -567,9 +567,9 @@ private struct SpaceAmidaBoard {
     }
 
     func layout(in size: CGSize) -> SpaceAmidaLayout {
-        let top: CGFloat = 62
-        let bottom = max(top + 120, size.height - 66)
-        let side = max(CGFloat(36), min(CGFloat(70), size.width * 0.12))
+        let top: CGFloat = 46
+        let bottom = max(top + 120, size.height - 46)
+        let side = max(CGFloat(44), min(CGFloat(80), size.width * 0.10))
         let left = side
         let right = size.width - side
         let gap = (right - left) / CGFloat(max(1, count - 1))
