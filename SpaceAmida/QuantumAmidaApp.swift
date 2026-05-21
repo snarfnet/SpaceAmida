@@ -31,8 +31,8 @@ struct QuantumAmidaView: View {
         GeometryReader { proxy in
             let isWide = proxy.size.width >= 760
             let boardHeight = isWide
-                ? min(max(proxy.size.height - 250, 390), 620)
-                : min(max(proxy.size.height * 0.48, 340), 470)
+                ? min(max(proxy.size.height - 250, 390), 680)
+                : min(max(proxy.size.height * 0.50, 380), 520)
 
             ZStack {
                 SpaceBackground()
@@ -487,13 +487,13 @@ private struct SpaceAmidaCanvas: View {
             drawBadge(
                 context: &context,
                 text: names[safe: index]?.isEmpty == false ? names[index] : "クルー \(index + 1)",
-                point: CGPoint(x: layout.columns[index].x, y: layout.top - 44),
+                point: CGPoint(x: layout.columns[index].x, y: layout.top - 30),
                 color: SpaceAmidaBoard.palette[index % SpaceAmidaBoard.palette.count]
             )
             drawBadge(
                 context: &context,
                 text: prizes[safe: index]?.isEmpty == false ? prizes[index] : "ゴール \(index + 1)",
-                point: CGPoint(x: layout.columns[index].x, y: layout.bottom + 44),
+                point: CGPoint(x: layout.columns[index].x, y: layout.bottom + 30),
                 color: revealedLanes.contains(index) ? .mint : .white.opacity(0.42)
             )
         }
@@ -567,9 +567,9 @@ private struct SpaceAmidaBoard {
     }
 
     func layout(in size: CGSize) -> SpaceAmidaLayout {
-        let top: CGFloat = 82
-        let bottom = max(top + 120, size.height - 86)
-        let side = max(CGFloat(30), min(CGFloat(70), size.width * 0.10))
+        let top: CGFloat = 62
+        let bottom = max(top + 120, size.height - 66)
+        let side = max(CGFloat(36), min(CGFloat(70), size.width * 0.12))
         let left = side
         let right = size.width - side
         let gap = (right - left) / CGFloat(max(1, count - 1))

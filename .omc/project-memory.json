@@ -66,8 +66,14 @@
   "hotPaths": [
     {
       "path": "SpaceAmida\\QuantumAmidaApp.swift",
-      "accessCount": 7,
-      "lastAccessed": 1779313226082,
+      "accessCount": 9,
+      "lastAccessed": 1779314526190,
+      "type": "file"
+    },
+    {
+      "path": "project.yml",
+      "accessCount": 1,
+      "lastAccessed": 1779314495801,
       "type": "file"
     }
   ],
