@@ -22,7 +22,9 @@ struct QuantumAmidaView: View {
     @State private var isRunning = false
     @State private var history: [String] = []
     @AppStorage("didRequestTrackingPermission") private var didRequestTrackingPermission = false
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
+    private var iPad: Bool { sizeClass == .regular }
     private var count: Int { Int(laneCount.rounded()) }
     private var visibleNames: [String] { Array(names.prefix(count)) }
     private var visiblePrizes: [String] { Array(prizes.prefix(count)) }
@@ -96,20 +98,20 @@ struct QuantumAmidaView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
+        HStack(alignment: .center, spacing: iPad ? 18 : 12) {
+            VStack(alignment: .leading, spacing: iPad ? 8 : 6) {
                 Text("SPACE AMIDA")
-                    .font(.system(size: 12, weight: .black, design: .monospaced))
+                    .font(.system(size: iPad ? 16 : 12, weight: .black, design: .monospaced))
                     .foregroundStyle(.cyan)
                     .tracking(1.8)
 
                 Text("スペースあみだ")
-                    .font(.system(size: 32, weight: .black, design: .rounded))
+                    .font(.system(size: iPad ? 42 : 32, weight: .black, design: .rounded))
                     .lineLimit(1)
                     .minimumScaleFactor(0.62)
 
                 Text("星のレーンを走らせて、今日の役割を決める。")
-                    .font(.callout.weight(.semibold))
+                    .font(.system(size: iPad ? 18 : 15, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.72))
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -121,8 +123,8 @@ struct QuantumAmidaView: View {
                 playTap()
             } label: {
                 Image(systemName: soundEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill")
-                    .font(.system(size: 18, weight: .bold))
-                    .frame(width: 46, height: 46)
+                    .font(.system(size: iPad ? 24 : 18, weight: .bold))
+                    .frame(width: iPad ? 56 : 46, height: iPad ? 56 : 46)
                     .foregroundStyle(soundEnabled ? .cyan : .white.opacity(0.45))
                     .background(.black.opacity(0.34), in: RoundedRectangle(cornerRadius: 8))
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.white.opacity(0.18)))
@@ -132,14 +134,14 @@ struct QuantumAmidaView: View {
     }
 
     private var commandPanel: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: iPad ? 14 : 10) {
             HStack {
                 Label("参加レーン", systemImage: "slider.horizontal.3")
-                    .font(.caption.weight(.black))
+                    .font(.system(size: iPad ? 16 : 12, weight: .black))
                     .foregroundStyle(.white.opacity(0.68))
                 Spacer()
                 Text("\(count)")
-                    .font(.title3.weight(.black))
+                    .font(.system(size: iPad ? 26 : 20, weight: .black))
                     .foregroundStyle(.yellow)
                     .monospacedDigit()
             }
@@ -148,16 +150,16 @@ struct QuantumAmidaView: View {
                 .tint(.cyan)
                 .disabled(isRunning)
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: iPad ? 8 : 6) {
                 sectionTitle("クルー")
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 8)], spacing: 8) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: iPad ? 160 : 130), spacing: iPad ? 10 : 8)], spacing: iPad ? 10 : 8) {
                     ForEach(0..<count, id: \.self) { index in
-                        FieldTile(index: index, title: "レーン \(index + 1)", text: binding($names, index: index), disabled: isRunning)
+                        FieldTile(index: index, title: "レーン \(index + 1)", text: binding($names, index: index), disabled: isRunning, iPad: iPad)
                     }
                 }
             }
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: iPad ? 8 : 6) {
                 HStack {
                     sectionTitle("ゴール")
                     Spacer()
@@ -170,26 +172,26 @@ struct QuantumAmidaView: View {
                     } label: {
                         Label("名前を使う", systemImage: "arrow.down.doc.fill")
                     }
-                    .font(.caption.weight(.bold))
+                    .font(.system(size: iPad ? 15 : 12, weight: .bold))
                     .foregroundStyle(.mint)
                     .disabled(isRunning)
                 }
 
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 8)], spacing: 8) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: iPad ? 160 : 130), spacing: iPad ? 10 : 8)], spacing: iPad ? 10 : 8) {
                     ForEach(0..<count, id: \.self) { index in
-                        FieldTile(index: index, title: "結果 \(index + 1)", text: binding($prizes, index: index), disabled: isRunning)
+                        FieldTile(index: index, title: "結果 \(index + 1)", text: binding($prizes, index: index), disabled: isRunning, iPad: iPad)
                     }
                 }
             }
 
-            HStack(spacing: 8) {
+            HStack(spacing: iPad ? 12 : 8) {
                 Button {
                     rebuildBoard()
                     playTap()
                 } label: {
                     Label("組み直す", systemImage: "arrow.triangle.2.circlepath")
                 }
-                .buttonStyle(SecondarySpaceButtonStyle())
+                .buttonStyle(SecondarySpaceButtonStyle(iPad: iPad))
                 .disabled(isRunning)
 
                 Button {
@@ -197,11 +199,11 @@ struct QuantumAmidaView: View {
                 } label: {
                     Label(isRunning ? "航行中" : "スタート", systemImage: isRunning ? "bolt.fill" : "sparkles")
                 }
-                .buttonStyle(PrimarySpaceButtonStyle())
+                .buttonStyle(PrimarySpaceButtonStyle(iPad: iPad))
                 .disabled(isRunning)
             }
         }
-        .padding(12)
+        .padding(iPad ? 18 : 12)
         .background(.black.opacity(0.44), in: RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(.cyan.opacity(0.22)))
     }
@@ -225,45 +227,45 @@ struct QuantumAmidaView: View {
 
     private var resultPanel: some View {
         let outputs = board.outputs(for: visibleNames)
-        return VStack(alignment: .leading, spacing: 10) {
+        return VStack(alignment: .leading, spacing: iPad ? 14 : 10) {
             HStack {
                 sectionTitle("結果")
                 Spacer()
                 Text(revealedLanes.count == count ? "COMPLETE" : "\(revealedLanes.count)/\(count)")
-                    .font(.caption.weight(.black))
+                    .font(.system(size: iPad ? 15 : 12, weight: .black))
                     .foregroundStyle(revealedLanes.count == count ? .mint : .white.opacity(0.58))
                     .monospacedDigit()
             }
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 8)], spacing: 8) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: iPad ? 180 : 150), spacing: iPad ? 10 : 8)], spacing: iPad ? 10 : 8) {
                 ForEach(0..<count, id: \.self) { index in
                     let revealed = revealedLanes.contains(index)
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: iPad ? 8 : 6) {
                         Text(prizes[index].isEmpty ? "ゴール \(index + 1)" : prizes[index])
-                            .font(.caption.weight(.bold))
+                            .font(.system(size: iPad ? 15 : 12, weight: .bold))
                             .foregroundStyle(.white.opacity(0.58))
                             .lineLimit(1)
                             .minimumScaleFactor(0.72)
                         Text(revealed ? outputs[index] : "待機中")
-                            .font(.headline.weight(.black))
+                            .font(.system(size: iPad ? 20 : 17, weight: .black))
                             .foregroundStyle(revealed ? .white : .white.opacity(0.48))
                             .lineLimit(3)
                             .minimumScaleFactor(0.62)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
-                    .padding(10)
+                    .frame(maxWidth: .infinity, minHeight: iPad ? 66 : 56, alignment: .leading)
+                    .padding(iPad ? 14 : 10)
                     .background(revealed ? .mint.opacity(0.15) : .white.opacity(0.055), in: RoundedRectangle(cornerRadius: 8))
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(revealed ? .mint.opacity(0.48) : .white.opacity(0.11)))
                 }
             }
         }
-        .padding(10)
+        .padding(iPad ? 14 : 10)
         .background(.black.opacity(0.30), in: RoundedRectangle(cornerRadius: 8))
     }
 
     private var historyPanel: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: iPad ? 14 : 10) {
             HStack {
                 sectionTitle("ログ")
                 Spacer()
@@ -271,34 +273,34 @@ struct QuantumAmidaView: View {
                     history.removeAll()
                     playTap()
                 }
-                .font(.caption.weight(.bold))
+                .font(.system(size: iPad ? 15 : 12, weight: .bold))
                 .foregroundStyle(history.isEmpty ? .white.opacity(0.28) : .white.opacity(0.72))
                 .disabled(history.isEmpty)
             }
 
             if history.isEmpty {
                 Text("完了した結果がここに残ります。")
-                    .font(.footnote)
+                    .font(.system(size: iPad ? 16 : 13, weight: .regular))
                     .foregroundStyle(.white.opacity(0.48))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(14)
+                    .padding(iPad ? 18 : 14)
                     .background(.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 8))
             } else {
-                VStack(spacing: 8) {
+                VStack(spacing: iPad ? 10 : 8) {
                     ForEach(Array(history.prefix(4).enumerated()), id: \.offset) { index, value in
-                        HStack(spacing: 10) {
+                        HStack(spacing: iPad ? 14 : 10) {
                             Text("#\(index + 1)")
-                                .font(.caption.weight(.black))
+                                .font(.system(size: iPad ? 15 : 12, weight: .black))
                                 .foregroundStyle(.cyan)
-                                .frame(width: 32, alignment: .leading)
+                                .frame(width: iPad ? 40 : 32, alignment: .leading)
                             Text(value)
-                                .font(.subheadline.weight(.semibold))
+                                .font(.system(size: iPad ? 17 : 15, weight: .semibold))
                                 .foregroundStyle(.white.opacity(0.86))
                                 .fixedSize(horizontal: false, vertical: true)
                             Spacer()
                         }
-                        .padding(12)
+                        .padding(iPad ? 16 : 12)
                         .background(.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 8))
                     }
                 }
@@ -308,7 +310,7 @@ struct QuantumAmidaView: View {
 
     private func sectionTitle(_ text: String) -> some View {
         Text(text)
-            .font(.caption.weight(.black))
+            .font(.system(size: iPad ? 16 : 12, weight: .black))
             .foregroundStyle(.white.opacity(0.66))
     }
 
@@ -395,15 +397,16 @@ private struct FieldTile: View {
     let title: String
     @Binding var text: String
     let disabled: Bool
+    var iPad: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: iPad ? 8 : 6) {
             Text(title)
-                .font(.caption2.weight(.black))
+                .font(.system(size: iPad ? 13 : 10, weight: .black))
                 .foregroundStyle(SpaceAmidaBoard.palette[index % SpaceAmidaBoard.palette.count])
             TextField(title, text: $text)
-                .textFieldStyle(SpaceFieldStyle())
-                .font(.subheadline.weight(.semibold))
+                .textFieldStyle(SpaceFieldStyle(iPad: iPad))
+                .font(.system(size: iPad ? 17 : 15, weight: .semibold))
                 .disabled(disabled)
         }
     }
@@ -759,10 +762,11 @@ private struct SpaceBackground: View {
 }
 
 private struct SpaceFieldStyle: TextFieldStyle {
+    var iPad: Bool = false
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
-            .padding(.horizontal, 10)
-            .frame(minHeight: 38)
+            .padding(.horizontal, iPad ? 14 : 10)
+            .frame(minHeight: iPad ? 48 : 38)
             .foregroundStyle(.white)
             .background(.black.opacity(0.42), in: RoundedRectangle(cornerRadius: 8))
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(.cyan.opacity(0.22)))
@@ -770,13 +774,14 @@ private struct SpaceFieldStyle: TextFieldStyle {
 }
 
 private struct SecondarySpaceButtonStyle: ButtonStyle {
+    var iPad: Bool = false
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.headline.weight(.black))
+            .font(.system(size: iPad ? 20 : 17, weight: .black))
             .lineLimit(1)
             .minimumScaleFactor(0.72)
             .frame(maxWidth: .infinity)
-            .frame(minHeight: 46)
+            .frame(minHeight: iPad ? 56 : 46)
             .foregroundStyle(.cyan)
             .background(.white.opacity(configuration.isPressed ? 0.13 : 0.07), in: RoundedRectangle(cornerRadius: 8))
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(.cyan.opacity(0.28)))
@@ -784,13 +789,14 @@ private struct SecondarySpaceButtonStyle: ButtonStyle {
 }
 
 private struct PrimarySpaceButtonStyle: ButtonStyle {
+    var iPad: Bool = false
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.headline.weight(.black))
+            .font(.system(size: iPad ? 20 : 17, weight: .black))
             .lineLimit(1)
             .minimumScaleFactor(0.72)
             .frame(maxWidth: .infinity)
-            .frame(minHeight: 46)
+            .frame(minHeight: iPad ? 56 : 46)
             .foregroundStyle(.black)
             .background(
                 LinearGradient(colors: [.yellow, .mint, .cyan], startPoint: .leading, endPoint: .trailing),
