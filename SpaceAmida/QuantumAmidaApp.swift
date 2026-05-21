@@ -380,14 +380,28 @@ struct QuantumAmidaView: View {
 
     private func requestTrackingPermissionIfNeeded() {
         guard !didRequestTrackingPermission else { return }
-        guard ATTrackingManager.trackingAuthorizationStatus == .notDetermined else {
-            didRequestTrackingPermission = true
-            return
-        }
+        if #available(iOS 14, *) {
+            guard ATTrackingManager.trackingAuthorizationStatus == .notDetermined else {
+                didRequestTrackingPermission = true
+                return
+            }
 
-        didRequestTrackingPermission = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-            ATTrackingManager.requestTrackingAuthorization { _ in }
+            didRequestTrackingPermission = true
+            // Use scene phase notification instead of fixed delay for iPad Split View safety
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                guard let scene = UIApplication.shared.connectedScenes
+                    .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene,
+                      scene.windows.first(where: { $0.isKeyWindow }) != nil else {
+                    // Scene not fully active yet (iPad Split View edge case) — retry once
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        ATTrackingManager.requestTrackingAuthorization { _ in }
+                    }
+                    return
+                }
+                ATTrackingManager.requestTrackingAuthorization { _ in }
+            }
+        } else {
+            didRequestTrackingPermission = true
         }
     }
 }
