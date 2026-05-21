@@ -422,7 +422,7 @@ private struct SpaceAmidaCanvas: View {
             drawBackdrop(context: &context, size: size)
             let layout = board.layout(in: size)
             drawGrid(context: &context, layout: layout)
-            drawLabels(context: &context, layout: layout)
+            drawLabels(context: &context, layout: layout, size: size)
             drawParticles(context: &context, layout: layout)
 
             if isRunning {
@@ -485,30 +485,38 @@ private struct SpaceAmidaCanvas: View {
         }
     }
 
-    private func drawLabels(context: inout GraphicsContext, layout: SpaceAmidaLayout) {
+    private func drawLabels(context: inout GraphicsContext, layout: SpaceAmidaLayout, size: CGSize) {
+        let isLarge = size.width > 500
+        let labelOffset: CGFloat = isLarge ? 28 : 22
         for index in layout.columns.indices {
             drawBadge(
                 context: &context,
                 text: names[safe: index]?.isEmpty == false ? names[index] : "クルー \(index + 1)",
-                point: CGPoint(x: layout.columns[index].x, y: layout.top - 22),
-                color: SpaceAmidaBoard.palette[index % SpaceAmidaBoard.palette.count]
+                point: CGPoint(x: layout.columns[index].x, y: layout.top - labelOffset),
+                color: SpaceAmidaBoard.palette[index % SpaceAmidaBoard.palette.count],
+                isLarge: isLarge
             )
             drawBadge(
                 context: &context,
                 text: prizes[safe: index]?.isEmpty == false ? prizes[index] : "ゴール \(index + 1)",
-                point: CGPoint(x: layout.columns[index].x, y: layout.bottom + 22),
-                color: revealedLanes.contains(index) ? .mint : .white.opacity(0.42)
+                point: CGPoint(x: layout.columns[index].x, y: layout.bottom + labelOffset),
+                color: revealedLanes.contains(index) ? .mint : .white.opacity(0.42),
+                isLarge: isLarge
             )
         }
     }
 
-    private func drawBadge(context: inout GraphicsContext, text: String, point: CGPoint, color: Color) {
+    private func drawBadge(context: inout GraphicsContext, text: String, point: CGPoint, color: Color, isLarge: Bool) {
         let displayText = text.count > 8 ? String(text.prefix(8)) + "…" : text
-        let resolved = context.resolve(Text(displayText).font(.caption2.weight(.black)).foregroundColor(.white))
-        let width = min(max(resolved.measure(in: CGSize(width: 150, height: 32)).width + 20, 62), 150)
-        let rect = CGRect(x: point.x - width / 2, y: point.y - 16, width: width, height: 32)
-        context.fill(Path(roundedRect: rect, cornerRadius: 8), with: .color(.black.opacity(0.72)))
-        context.stroke(Path(roundedRect: rect, cornerRadius: 8), with: .color(color.opacity(0.72)), lineWidth: 1)
+        let font: Font = isLarge ? .caption.weight(.black) : .caption2.weight(.black)
+        let resolved = context.resolve(Text(displayText).font(font).foregroundColor(.white))
+        let maxW: CGFloat = isLarge ? 180 : 150
+        let badgeH: CGFloat = isLarge ? 36 : 32
+        let minW: CGFloat = isLarge ? 72 : 62
+        let width = min(max(resolved.measure(in: CGSize(width: maxW, height: badgeH)).width + 24, minW), maxW)
+        let rect = CGRect(x: point.x - width / 2, y: point.y - badgeH / 2, width: width, height: badgeH)
+        context.fill(Path(roundedRect: rect, cornerRadius: 10), with: .color(.black.opacity(0.72)))
+        context.stroke(Path(roundedRect: rect, cornerRadius: 10), with: .color(color.opacity(0.72)), lineWidth: 1)
         context.draw(resolved, at: point)
     }
 
@@ -570,9 +578,10 @@ private struct SpaceAmidaBoard {
     }
 
     func layout(in size: CGSize) -> SpaceAmidaLayout {
-        let top: CGFloat = 46
-        let bottom = max(top + 120, size.height - 46)
-        let side = max(CGFloat(44), min(CGFloat(80), size.width * 0.10))
+        let isLarge = size.width > 500
+        let top: CGFloat = isLarge ? 58 : 46
+        let bottom = max(top + 120, size.height - (isLarge ? 58 : 46))
+        let side = max(CGFloat(44), min(CGFloat(120), size.width * 0.12))
         let left = side
         let right = size.width - side
         let gap = (right - left) / CGFloat(max(1, count - 1))
